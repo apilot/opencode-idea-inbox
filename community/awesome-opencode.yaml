@@ -1,8 +1,4 @@
-# awesome-opencode entry — submit as data/plugins/opencode-idea-inbox.yaml
-# Rules: https://github.com/awesome-opencode/awesome-opencode/blob/main/contributing.md
-# (fork -> add YAML -> PR; README regenerates automatically)
-
-name: opencode-idea-inbox
+name: Idea Inbox
 repo: https://github.com/apilot/opencode-idea-inbox
 tagline: Capture ideas into a sidebar backlog mid-conversation, then dispatch them from the command palette
 description: >-
