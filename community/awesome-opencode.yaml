@@ -1,0 +1,64 @@
+# awesome-opencode entry — submit as data/plugins/opencode-idea-inbox.yaml
+# Rules: https://github.com/awesome-opencode/awesome-opencode/blob/main/contributing.md
+# (fork -> add YAML -> PR; README regenerates automatically)
+
+name: opencode-idea-inbox
+repo: https://github.com/apilot/opencode-idea-inbox
+tagline: Capture ideas into a sidebar backlog mid-conversation, then dispatch them from the command palette
+description: >-
+  A persistent idea backlog for the opencode TUI. Capture a stray thought
+  mid-conversation with /idea (or the "New idea" palette entry) without leaving
+  your current task, watch ideas and their statuses live in the Idea Inbox
+  sidebar, then dispatch any pending idea straight from the command palette:
+  a delegation mission is injected into the main window and execution starts
+  immediately, with in_progress/done statuses set by the agent itself.
+  Alternatively run ideas in background sessions. Storage is per-worktree
+  SQLite, so the backlog survives restarts; documented ideas are archived as
+  history. Built entirely on supported plugin APIs (keymap layers, sidebar
+  slots, prompt injection via the SDK).
+scope:
+  - global
+  - project
+tags:
+  - productivity
+  - backlog
+  - tui
+  - sidebar
+  - workflow
+min_version: "1.18.30"
+installation: |
+  ## Installation
+
+  Clone the repository anywhere:
+
+  ```bash
+  git clone https://github.com/apilot/opencode-idea-inbox.git ~/opencode-idea-inbox
+  ```
+
+  Register the server part in `~/.config/opencode/opencode.json`:
+
+  ```json
+  {
+    "plugin": [
+      "file:///home/YOU/opencode-idea-inbox"
+    ]
+  }
+  ```
+
+  Register the TUI part in `~/.config/opencode/tui.json` (note the `/tui` subpath):
+
+  ```json
+  {
+    "plugin": [
+      "file:///home/YOU/opencode-idea-inbox/tui"
+    ]
+  }
+  ```
+
+  Install the slash commands and restart opencode:
+
+  ```bash
+  cp ~/opencode-idea-inbox/commands/*.md ~/.config/opencode/command/
+  ```
+
+  Requires opencode 1.18.30+.
