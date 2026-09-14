@@ -128,7 +128,10 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
         syncDelete(rest)
         api.keymap.dispatchCommand(PALETTE)
       } catch {
-        // БД недоступна — вернёмся к нормальному слою на следующем тике
+        // Слой или палитра не поднялись — сбрасываем stamp, следующий тик
+        // вернёт нормальный слой (самолечение).
+        stamp = undefined
+        api.ui.toast({ title: "idea-inbox", message: "Режим удаления прерван — список восстановится автоматически", variant: "error" })
       }
     }, 0)
   }
@@ -146,7 +149,9 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
         syncDelete(ideas)
         api.keymap.dispatchCommand(PALETTE)
       } catch {
-        api.ui.toast({ title: "idea-inbox", message: "БД недоступна", variant: "error" })
+        // Не различаем БД/keymap: в любом случае самолечение на тике
+        stamp = undefined
+        api.ui.toast({ title: "idea-inbox", message: "Не удалось открыть режим удаления", variant: "error" })
       }
     }, 0)
   }
@@ -265,14 +270,26 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
     },
   ]
 
-  const syncLayer = (commands: ReturnType<typeof build>): void => {
-    layer?.()
-    layer = api.keymap.registerLayer({
+  // Биндинги нормального слоя: их команды (open/capture) обязаны быть в том
+  // же слое. Биндинг, ссылающийся на команду, отсутствующую в слое, ломает
+  // реактивное состояние @opentui/keymap вне нашего try/catch — наблюдали
+  // вживую: после режима удаления умирали leader+i/z и рендер сайдбара.
+  // Delete-слой транзитный (управляется палитрой) — биндингов не имеет.
+  const BINDINGS = [
+    { key: "<leader>i", cmd: "idea-inbox:open" },
+    { key: "<leader>z", cmd: "idea-inbox:capture" },
+  ]
+
+  const syncLayer = (commands: ReturnType<typeof build>, bindings: typeof BINDINGS): void => {
+    // Сначала регистрируем новый слой и лишь затем освобождаем прежний:
+    // если registerLayer бросит — старый слой остаётся активным, биндинги
+    // продолжают работать (раньше dispose-до-регистрации оставлял нас
+    // вообще без слоя до конца сессии).
+    const next = api.keymap.registerLayer({
       // Палитра (Suggested) перечисляет команды в порядке state.sortedLayers:
-      // compareLayers = priority DESC, затем order ASC. Слой перерегистрируется
-      // при каждом изменении набора идей и получает максимальный order — без
-      // повышенного priority он опускался бы в конец списка. Приоритет держит
-      // наши идеи первыми в Suggested всегда.
+      // compareLayers = priority DESC, затем order DESC. Слой перерегистрируется
+      // при каждом изменении набора идей — без повышенного priority он
+      // опускался бы в конец списка. Приоритет держит идеи первыми всегда.
       //
       // ВАЖНО про биндинги: @opentui/keymap приводит имя клавиши к нижнему
       // регистру (normalizeBindingTokenName → toLowerCase), shift-бит из
@@ -282,21 +299,25 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
       // z (записать идею, мнемоника «запиши»).
       priority: 100,
       commands,
-      bindings: [
-        { key: "<leader>i", cmd: "idea-inbox:open" },
-        { key: "<leader>z", cmd: "idea-inbox:capture" },
-      ],
+      bindings,
     })
+    const previous = layer
+    layer = next
+    previous?.()
   }
 
-  const syncNormal = (ideas: Idea[]): void => syncLayer(build(ideas))
-  const syncDelete = (ideas: Idea[]): void => syncLayer(buildDelete(ideas))
+  const syncNormal = (ideas: Idea[]): void => syncLayer(build(ideas), BINDINGS)
+  const syncDelete = (ideas: Idea[]): void => syncLayer(buildDelete(ideas), [])
 
   /**
    * Тик синхронизации. force=true перерегистрирует нормальный слой без
    * проверки сигнатуры: гарантированный выход из режима удаления (Esc из
    * delete-палитры не удаляет ничего — сигнатура не меняется — и без
    * force слой залипал бы в режиме до следующего изменения бэклога).
+   *
+   * Самолечение: stamp обновляется только ПОСЛЕ успешной регистрации.
+   * Любой сбой (БД, keymap) сбрасывает stamp — следующий тик повторяет
+   * попытку, пустой бэклог больше не маскирует мёртвый слой.
    */
   const tick = (force = false): void => {
     const worktree = root()
@@ -305,10 +326,11 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
       const ideas = store.active(worktree)
       const next = signature(ideas)
       if (!force && stamp !== undefined && next === stamp) return
-      stamp = next
       syncNormal(ideas)
+      stamp = next
     } catch {
-      // БД недоступна — слой остаётся прежним
+      // БД недоступна или регистрация слоя не удалась — повторим на тике
+      stamp = undefined
     }
   }
 

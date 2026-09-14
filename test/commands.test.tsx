@@ -18,6 +18,7 @@ async function root(): Promise<string> {
 interface LayerCall {
   commands: { name: string; title: string; run: () => void }[]
   bindings: { key: string; cmd: string }[]
+  disposed?: boolean
 }
 
 /** Минимальный api: keymap/ui/client пишутся в логи, рендер не нужен. */
@@ -26,11 +27,22 @@ function stubApi() {
   const dispatched: string[] = []
   const toasts: string[] = []
   const prompts: string[] = []
+  let failNextCount = 0
+  const failNext = (count: number): void => {
+    failNextCount = count
+  }
   const api = {
     keymap: {
       registerLayer: (config: LayerCall) => {
+        if (failNextCount > 0) {
+          failNextCount -= 1
+          throw new Error("keymap boom")
+        }
         layers.push(config)
-        return () => {}
+        const index = layers.length - 1
+        return () => {
+          layers[index]!.disposed = true
+        }
       },
       dispatchCommand: (cmd: string) => dispatched.push(cmd),
     },
@@ -48,7 +60,7 @@ function stubApi() {
       },
     },
   }
-  return { api: api as unknown as TuiPluginApi, layers, dispatched, toasts, prompts }
+  return { api: api as unknown as TuiPluginApi, layers, dispatched, toasts, prompts, failNext }
 }
 
 /** run()-колбэки делают структурные операции через setTimeout(0). */
@@ -223,6 +235,75 @@ describe("clear command", () => {
     expect(store.byStatus(dir, "documented")).toHaveLength(1)
     expect(toasts.some((message) => message.includes("удалено 2"))).toBeTrue()
     expect(names(layers[layers.length - 1] as LayerCall)).toContain("idea-inbox:new")
+
+    off()
+  })
+})
+
+describe("layer invariants (регрессия смерти leader-биндингов)", () => {
+  test("every registered layer: bindings reference commands present in that layer; delete layer has none", async () => {
+    // Arrange — проходим нормальный режим и режим удаления
+    const dir = await root()
+    store.add(dir, "мысль")
+    const { api, layers, dispatched } = stubApi()
+    const off = register(api, () => dir)
+    byName(layers[0] as LayerCall, "idea-inbox:delete")?.run()
+    await settle()
+    expect(dispatched).toEqual([PALETTE])
+
+    // Act + Assert — каждый биндинг каждого слоя ссылается на команду СВОЕГО слоя
+    expect(layers.length).toBeGreaterThanOrEqual(2)
+    for (const layer of layers) {
+      const own = new Set(names(layer))
+      for (const binding of layer.bindings) {
+        expect(own.has(binding.cmd)).toBeTrue()
+      }
+    }
+    const deleteLayer = layers[layers.length - 1] as LayerCall
+    expect(deleteLayer.bindings).toBeEmpty()
+
+    off()
+  })
+
+  test("failed re-registration keeps previous layer alive and retries later", async () => {
+    // Arrange
+    const dir = await root()
+    store.add(dir, "мысль")
+    const { api, layers, failNext } = stubApi()
+    const off = register(api, () => dir)
+    expect(layers).toHaveLength(1)
+
+    // Act — принудительная перерегистрация (open) падает: keymap бросает
+    failNext(1)
+    byName(layers[0] as LayerCall, "idea-inbox:open")?.run()
+    await settle()
+
+    // Assert — новый слой не создан, прежний ЖИВ (dispose только после успеха)
+    expect(layers).toHaveLength(1)
+    expect((layers[0] as LayerCall).disposed).not.toBeTrue()
+
+    // Act 2 — повторная попытка успешна: слой перерегистрирован, старый освобождён
+    byName(layers[0] as LayerCall, "idea-inbox:open")?.run()
+    await settle()
+    expect(layers).toHaveLength(2)
+    expect((layers[0] as LayerCall).disposed).toBeTrue()
+    expect((layers[1] as LayerCall).disposed).not.toBeTrue()
+    expect(names(layers[1] as LayerCall)).toContain("idea-inbox:open")
+
+    off()
+  })
+
+  test("empty backlog still registers the normal layer with bindings", async () => {
+    // Arrange + Act
+    const dir = await root()
+    const { api, layers } = stubApi()
+    const off = register(api, () => dir)
+
+    // Assert — пустой бэклог ≠ отсутствие слоя: биндинги обязаны жить
+    expect(layers).toHaveLength(1)
+    const layer = layers[0] as LayerCall
+    expect(layer.commands.length).toBeGreaterThan(0)
+    expect(layer.bindings).toHaveLength(2)
 
     off()
   })
