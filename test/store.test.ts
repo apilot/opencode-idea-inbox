@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { active, add, byStatus, find, forSession, load, update } from "../src/store.js"
+import { active, add, byStatus, clear, find, forSession, load, sanitize, update, remove } from "../src/store.js"
 
 const roots: string[] = []
 
@@ -35,6 +35,33 @@ describe("add", () => {
   })
 })
 
+describe("sanitize", () => {
+  test("collapses newlines, tabs and repeated spaces into single line", () => {
+    expect(sanitize("не срабатывает ctrl+x shift+i\nтеряется, нужно проще")).toBe(
+      "не срабатывает ctrl+x shift+i теряется, нужно проще",
+    )
+    expect(sanitize("a\r\nb\rc\td")).toBe("a b c d")
+    expect(sanitize("a    b")).toBe("a b")
+    expect(sanitize("  крайние   пробелы  ")).toBe("крайние пробелы")
+  })
+
+  test("empty after sanitize stays empty (callers guard)", () => {
+    expect(sanitize("\n\t  \n")).toBe("")
+  })
+
+  test("add and update store sanitized single-line text", async () => {
+    // Arrange
+    const worktree = await root()
+    const idea = add(worktree, "строка один\nстрока два")
+
+    // Act
+    update(worktree, idea.id, { text: "новый\tтекст\nиз двух строк" })
+
+    // Assert
+    expect(find(worktree, idea.id)?.text).toBe("новый текст из двух строк")
+  })
+})
+
 describe("update", () => {
   test("changes only provided fields and bumps updated_at", async () => {
     // Arrange
@@ -61,6 +88,43 @@ describe("update", () => {
     const worktree = await root()
     const idea = add(worktree, "текст")
     expect(update(worktree, idea.id, {})?.updatedAt).toBe(idea.updatedAt)
+  })
+})
+
+describe("remove", () => {
+  test("deletes existing row and returns true", async () => {
+    // Arrange
+    const worktree = await root()
+    const idea = add(worktree, "на удаление")
+
+    // Act + Assert
+    expect(remove(worktree, idea.id)).toBeTrue()
+    expect(find(worktree, idea.id)).toBeUndefined()
+  })
+
+  test("unknown id returns false", async () => {
+    const worktree = await root()
+    expect(remove(worktree, "idea_missing")).toBeFalse()
+  })
+})
+
+describe("clear", () => {
+  test("deletes all active ideas, keeps documented archive, returns count", async () => {
+    // Arrange
+    const worktree = await root()
+    const first = add(worktree, "pending")
+    add(worktree, "in_progress")
+    const archived = add(worktree, "архивная")
+    update(worktree, first.id, { status: "done" })
+    update(worktree, archived.id, { status: "documented" })
+
+    // Act
+    const removed = clear(worktree)
+
+    // Assert
+    expect(removed).toBe(2)
+    expect(active(worktree)).toHaveLength(0)
+    expect(byStatus(worktree, "documented").map((idea) => idea.id)).toEqual([archived.id])
   })
 })
 

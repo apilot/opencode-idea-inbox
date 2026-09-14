@@ -4,11 +4,24 @@ import path from "node:path"
 import { isIdea, type Idea, type IdeaStatus } from "./types.js"
 
 /** Каталог хранилища внутри worktree. */
-export function dir(worktree: string): string {
+function dir(worktree: string): string {
   return path.join(worktree, ".opencode", "idea-inbox")
 }
 
-export function dbFile(worktree: string): string {
+/**
+ * Канонизация текста идеи: ровно одна строка. Переносы, табы и
+ * повторные пробелы схлопываются в один пробел, края обрезаются.
+ * Многострочный ввод (textarea модала, /idea с цитатой) не должен
+ * ломать таблицы и однострочный контракт тула idea_add.
+ */
+export function sanitize(text: string): string {
+  return text
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/ {2,}/g, " ")
+    .trim()
+}
+
+function dbFile(worktree: string): string {
   return path.join(dir(worktree), "ideas.db")
 }
 
@@ -99,7 +112,7 @@ export function add(worktree: string, text: string, originSessionID: string | nu
   const stamp = now.toISOString()
   const idea: Idea = {
     id: mint(),
-    text,
+    text: sanitize(text),
     status: "pending",
     createdAt: stamp,
     updatedAt: stamp,
@@ -130,7 +143,7 @@ export function update(worktree: string, id: string, patch: Patch, now: Date = n
   }
   if (patch.text !== undefined) {
     sets.push("text = ?")
-    values.push(patch.text)
+    values.push(sanitize(patch.text))
   }
   if (patch.sessionID !== undefined) {
     sets.push("session_id = ?")
@@ -150,4 +163,19 @@ export function update(worktree: string, id: string, patch: Patch, now: Date = n
 export function find(worktree: string, id: string): Idea | undefined {
   const row = connect(worktree).query("SELECT * FROM ideas WHERE id = ?").get(id) as Row | null
   return row === null ? undefined : toIdea(row) ?? undefined
+}
+
+/** Жёсткое удаление одной идеи; false, если id не найден. */
+export function remove(worktree: string, id: string): boolean {
+  return connect(worktree).run("DELETE FROM ideas WHERE id = ?", [id]).changes > 0
+}
+
+/**
+ * Удаление всех активных идей (pending/in_progress/done) — сайдбар
+ * пустеет. Архив documented не трогается: история сохраняется как
+ * страховка от необратимости очистки без диалога подтверждения.
+ * Возвращает число удалённых записей.
+ */
+export function clear(worktree: string): number {
+  return connect(worktree).run("DELETE FROM ideas WHERE status != 'documented'").changes
 }

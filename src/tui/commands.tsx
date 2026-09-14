@@ -23,6 +23,12 @@ const PALETTE = "command.palette.show"
  * Ограничение @opentui/keymap: структурный re-entry не поддерживается —
  * перерегистрация слоя (sync) только вне dispatch-контекста (poll-тик или
  * setTimeout-дефер).
+ *
+ * Удаление: нативная палитра не поддерживает пер-итемных биндингов (ctrl+d
+ * на подсвеченном пункте), поэтому «удаление по одному» реализовано режимом:
+ * команда «🗑 Удалить идею…» перерегистрирует слой с delete-командами и
+ * переоткрывает палитру. tick(force) всегда возвращает слой к нормальному
+ * виду — режим не залипает после Esc (следующий <leader>i = normal).
  */
 export function register(api: TuiPluginApi, root: () => string | undefined): () => void {
   let layer: (() => void) | undefined
@@ -57,8 +63,97 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
     api.ui.toast({ title: "idea-inbox", message: `▶ ${idea.id} — отправлено в основное окно`, variant: "info" })
   }
 
+  /**
+   * Захват идеи без модели: нативный DialogPrompt пишет текст сразу
+   * в стор (SQLite WAL) из TUI-процесса. Сессия и агент не задействуются.
+   * Спайк: проверяем, триггерит ли Enter onConfirm в плагин-контексте
+   * на 1.18.31 (раньше не триггерил, #22610).
+   */
+  const capture = (): void => {
+    api.ui.dialog.replace(() => (
+      <api.ui.DialogPrompt
+        title="Новая идея"
+        placeholder="Мысль одной строкой — Enter сохранит, Esc отменит"
+        onConfirm={(text) => {
+          const value = text.trim()
+          if (value !== "") {
+            try {
+              const worktree = root()
+              if (worktree !== undefined) {
+                const idea = store.add(worktree, value)
+                api.ui.toast({ title: "idea-inbox", message: `✓ ${idea.id} — ${trim(value, 40)}`, variant: "info" })
+              }
+            } catch {
+              api.ui.toast({ title: "idea-inbox", message: "Не удалось сохранить идею", variant: "error" })
+            }
+          }
+          api.ui.dialog.clear()
+        }}
+        onCancel={() => api.ui.dialog.clear()}
+      />
+    ))
+  }
+
+  /**
+   * Удаление одной идеи. После удаления остаёмся в режиме удаления:
+   * палитра переоткрывается с оставшимися записями («удалять по одному»).
+   * Когда удалять больше нечего — возврат к нормальному слою.
+   */
+  const removeIdea = (idea: Idea): void => {
+    try {
+      const worktree = root()
+      if (worktree === undefined) return
+      const removed = store.remove(worktree, idea.id)
+      api.ui.toast({
+        title: "idea-inbox",
+        message: removed ? `🗑 ${idea.id} — удалено` : `Идея ${idea.id} не найдена`,
+        variant: removed ? "info" : "error",
+      })
+      if (!removed) return
+    } catch {
+      api.ui.toast({ title: "idea-inbox", message: "Не удалось удалить идею", variant: "error" })
+      return
+    }
+
+    // setTimeout(0): структурная перерегистрация слоя вне dispatch-стека.
+    setTimeout(() => {
+      try {
+        const worktree = root()
+        const rest = worktree === undefined ? [] : store.active(worktree)
+        if (rest.length === 0) {
+          api.ui.toast({ title: "idea-inbox", message: "Список пуст", variant: "info" })
+          tick(true)
+          return
+        }
+        syncDelete(rest)
+        api.keymap.dispatchCommand(PALETTE)
+      } catch {
+        // БД недоступна — вернёмся к нормальному слою на следующем тике
+      }
+    }, 0)
+  }
+
+  /** Вход в режим удаления: слой с delete-командами + открытая палитра. */
+  const enterDelete = (): void => {
+    setTimeout(() => {
+      try {
+        const worktree = root()
+        const ideas = worktree === undefined ? [] : store.active(worktree)
+        if (ideas.length === 0) {
+          api.ui.toast({ title: "idea-inbox", message: "Список уже пуст", variant: "info" })
+          return
+        }
+        syncDelete(ideas)
+        api.keymap.dispatchCommand(PALETTE)
+      } catch {
+        api.ui.toast({ title: "idea-inbox", message: "БД недоступна", variant: "error" })
+      }
+    }, 0)
+  }
+
   // Порядок = порядку в Suggested-секции палитры: сначала идеи (Enter на
-  // первой — запуск), затем «новая идея», открывалка — последней.
+  // первой — запуск), затем «новая идея», вход в удаление, открывалка,
+  // очистка — последней (самая деструктивная, дальше всех от случайного Enter).
   const build = (ideas: Idea[]) => [
     ...ideas
       .filter((idea) => idea.status === "pending")
@@ -86,6 +181,24 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
     },
     {
       namespace: "palette",
+      name: "idea-inbox:capture",
+      title: "✚ Новая идея… (модал)",
+      desc: "idea-inbox: захват без модели — сразу в бэклог",
+      category: "Idea Inbox",
+      suggested: true,
+      run: () => capture(),
+    },
+    {
+      namespace: "palette",
+      name: "idea-inbox:delete",
+      title: `🗑 Удалить идею… (${ideas.length})`,
+      desc: "idea-inbox: удаление записей по одной из списка",
+      category: "Idea Inbox",
+      suggested: true,
+      run: () => enterDelete(),
+    },
+    {
+      namespace: "palette",
       name: "idea-inbox:open",
       title: "Idea Inbox: открыть список",
       desc: "Палитра выбора идеи из бэклога",
@@ -94,15 +207,65 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
       run: () => {
         // setTimeout(0): выходим из dispatch-стека — структурные операции
         // (sync) во время dispatch не поддерживаются @opentui/keymap.
+        // tick(true): принудительно возвращаем слой к нормальному виду
+        // (если предыдущий визит закончился в режиме удаления).
         setTimeout(() => {
-          tick()
+          tick(true)
+          api.keymap.dispatchCommand(PALETTE)
+        }, 0)
+      },
+    },
+    {
+      namespace: "palette",
+      name: "idea-inbox:clear",
+      title: `✖ Очистить список (${ideas.length})`,
+      desc: "idea-inbox: удалить все видимые идеи (архив documented остаётся)",
+      category: "Idea Inbox",
+      suggested: true,
+      run: () => {
+        setTimeout(() => {
+          const worktree = root()
+          if (worktree === undefined) return
+          try {
+            const removed = store.clear(worktree)
+            api.ui.toast({ title: "idea-inbox", message: `✓ Список очищен — удалено ${removed}`, variant: "info" })
+            tick(true)
+          } catch {
+            api.ui.toast({ title: "idea-inbox", message: "Не удалось очистить список", variant: "error" })
+          }
+        }, 0)
+      },
+    },
+  ]
+
+  /** Команды режима удаления: все активные идеи (включая ◐ и ●) + выход. */
+  const buildDelete = (ideas: Idea[]): ReturnType<typeof build> => [
+    ...ideas.map((idea) => ({
+      namespace: "palette",
+      name: `idea-inbox:rm:${idea.id}`,
+      title: `🗑 ${trim(idea.text, LIMIT)}`,
+      desc: `idea-inbox: удалить (${idea.id})`,
+      category: "Idea Inbox",
+      suggested: true,
+      run: () => removeIdea(idea),
+    })),
+    {
+      namespace: "palette",
+      name: "idea-inbox:back",
+      title: "↩ Назад к идеям",
+      desc: "idea-inbox: вернуться к обычному списку",
+      category: "Idea Inbox",
+      suggested: true,
+      run: () => {
+        setTimeout(() => {
+          tick(true)
           api.keymap.dispatchCommand(PALETTE)
         }, 0)
       },
     },
   ]
 
-  const sync = (ideas: Idea[]): void => {
+  const syncLayer = (commands: ReturnType<typeof build>): void => {
     layer?.()
     layer = api.keymap.registerLayer({
       // Палитра (Suggested) перечисляет команды в порядке state.sortedLayers:
@@ -110,21 +273,40 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
       // при каждом изменении набора идей и получает максимальный order — без
       // повышенного priority он опускался бы в конец списка. Приоритет держит
       // наши идеи первыми в Suggested всегда.
+      //
+      // ВАЖНО про биндинги: @opentui/keymap приводит имя клавиши к нижнему
+      // регистру (normalizeBindingTokenName → toLowerCase), shift-бит из
+      // заглавной буквы токена НЕ выводится — `<leader>I` молча совпадает с
+      // `<leader>i`. Поэтому разные действия = только разные строчные буквы.
+      // Заняты ядром: q e t b s x n l g c m a y u r h + 1-9. Наши: i (палитра),
+      // z (записать идею, мнемоника «запиши»).
       priority: 100,
-      commands: build(ideas),
-      bindings: [{ key: "<leader>i", cmd: "idea-inbox:open" }],
+      commands,
+      bindings: [
+        { key: "<leader>i", cmd: "idea-inbox:open" },
+        { key: "<leader>z", cmd: "idea-inbox:capture" },
+      ],
     })
   }
 
-  const tick = (): void => {
+  const syncNormal = (ideas: Idea[]): void => syncLayer(build(ideas))
+  const syncDelete = (ideas: Idea[]): void => syncLayer(buildDelete(ideas))
+
+  /**
+   * Тик синхронизации. force=true перерегистрирует нормальный слой без
+   * проверки сигнатуры: гарантированный выход из режима удаления (Esc из
+   * delete-палитры не удаляет ничего — сигнатура не меняется — и без
+   * force слой залипал бы в режиме до следующего изменения бэклога).
+   */
+  const tick = (force = false): void => {
     const worktree = root()
     if (worktree === undefined) return
     try {
       const ideas = store.active(worktree)
       const next = signature(ideas)
-      if (stamp !== undefined && next === stamp) return
+      if (!force && stamp !== undefined && next === stamp) return
       stamp = next
-      sync(ideas)
+      syncNormal(ideas)
     } catch {
       // БД недоступна — слой остаётся прежним
     }

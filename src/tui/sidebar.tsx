@@ -51,7 +51,7 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
     return (
       <box>
         <text fg={palette.primary}>{`Idea Inbox (${items.length})`}</text>
-        {items.length === 0 && <text fg={palette.textMuted}>пусто — leader+i или /idea</text>}
+        {items.length === 0 && <text fg={palette.textMuted}>пусто — leader+z записать идею</text>}
         {items.map((idea) => (
           <text fg={color(idea.status, palette)} truncate>
             {`${glyph(idea.status)} ${trim(idea.text, LIMIT)}`}

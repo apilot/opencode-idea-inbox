@@ -1,7 +1,7 @@
 /** Статус идеи на конвейере pending → in_progress → done → documented. */
 export type IdeaStatus = "pending" | "in_progress" | "done" | "documented"
 
-/** Единица бэклога; сериализуется одной JSON-строкой в backlog.jsonl. */
+/** Единица бэклога; хранится строкой таблицы ideas в SQLite (ideas.db). */
 export interface Idea {
   id: string
   text: string
