@@ -26,7 +26,11 @@ const PALETTE = "command.palette.show"
  */
 export function register(api: TuiPluginApi, root: () => string | undefined): () => void {
   let layer: (() => void) | undefined
-  let stamp = ""
+  // undefined = синхронизация ещё не выполнялась. Пустая строка — валидная
+  // сигнатура пустого бэклога: если бы начальный stamp был "", первый tick
+  // с пустым бэклогом выходил бы ранним возвратом и слой с биндингом
+  // <leader>i никогда не регистрировался (наблюдалось вживую).
+  let stamp: string | undefined
 
   const signature = (ideas: Idea[]): string =>
     ideas
@@ -118,7 +122,7 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
     try {
       const ideas = store.active(worktree)
       const next = signature(ideas)
-      if (next === stamp) return
+      if (stamp !== undefined && next === stamp) return
       stamp = next
       sync(ideas)
     } catch {
