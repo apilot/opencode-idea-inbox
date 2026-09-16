@@ -21,32 +21,26 @@ tags:
   - tui
   - sidebar
   - workflow
-min_version: "1.18.30"
+min_version: "1.18.31"
 installation: |
   ## Installation
 
-  Clone the repository anywhere:
-
-  ```bash
-  git clone https://github.com/apilot/opencode-idea-inbox.git ~/opencode-idea-inbox
-  ```
-
-  Register the server part in `~/.config/opencode/opencode.json`:
+  Add the plugin to `~/.config/opencode/opencode.json`:
 
   ```json
   {
     "plugin": [
-      "file:///home/YOU/opencode-idea-inbox"
+      "opencode-idea-inbox"
     ]
   }
   ```
 
-  Register the TUI part in `~/.config/opencode/tui.json` (note the `/tui` subpath):
+  Add the TUI part to `~/.config/opencode/tui.json` — same bare name:
 
   ```json
   {
     "plugin": [
-      "file:///home/YOU/opencode-idea-inbox/tui"
+      "opencode-idea-inbox"
     ]
   }
   ```
@@ -54,7 +48,9 @@ installation: |
   Install the slash commands and restart opencode:
 
   ```bash
-  cp ~/opencode-idea-inbox/commands/*.md ~/.config/opencode/command/
+  mkdir -p ~/.config/opencode/command
+  curl -fsSL -o ~/.config/opencode/command/idea.md https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/commands/idea.md
+  curl -fsSL -o ~/.config/opencode/command/ideas.md https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/commands/ideas.md
   ```
 
-  Requires opencode 1.18.30+.
+  Requires opencode 1.18.31+.

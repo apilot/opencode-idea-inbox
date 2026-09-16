@@ -1,7 +1,7 @@
 # opencode-idea-inbox
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![opencode](https://img.shields.io/badge/opencode-%E2%89%A51.18.30-blue)](https://opencode.ai)
+[![opencode](https://img.shields.io/badge/opencode-%E2%89%A51.18.31-blue)](https://opencode.ai)
 
 [English](./README.md) | **Русский**
 
@@ -15,51 +15,70 @@
 
 ## Возможности
 
-- **Захват без трения** — `/idea <текст>` (или `✚ Новая идея…` в палитре) откладывает мысль в бэклог; вы остаётесь в текущей задаче
+- **Захват без трения** — `/idea <текст>`, пункт `✚ Новая идея…` в палитре или `Ctrl+X → Z` (`<leader>z`, модальный ввод без модели — пишет сразу в бэклог); вы остаётесь в текущей задаче
 - **Панель в сайдбаре** — живой слот `Idea Inbox (n)` с глифами статусов `○ ◐ ● ✓`, обновление каждые 2 секунды
 - **Нативный запуск из палитры** — `Ctrl+X → I` открывает палитру с pending-идеями первыми в Suggested; выбор идеи подаёт миссию оркестратору в основное окно, и выполнение начинается сразу
+- **Режим удаления и очистка** — наводите порядок из палитры: `🗑 Удалить идею…` удаляет по одной, `✖ Очистить список` сносит все активные (архив `documented` не трогается)
 - **Статусы ставит агент** — оркестратор помечает идею `in_progress` при запуске и `done` по завершении (тул `idea_update`), со страховкой по `session.idle`
 - **Фоновая альтернатива** — `/ideas start <id>` выполняет идею в отдельной сессии с агентом `build`
 - **Персистентность** — SQLite (WAL) на worktree, переживает рестарты; заархивированные идеи остаются в истории
 
 ## Требования
 
-- opencode **1.18.30** или новее (API плагинов: `keymap.registerLayer`, `dispatchCommand`, слоты сайдбара, `tui.appendPrompt`/`submitPrompt`)
-- Внешних зависимостей нет — плагин исполняется как TypeScript в Bun-рантайме opencode
+- opencode **1.18.31** или новее (API плагинов: `keymap.registerLayer`, `dispatchCommand`, слоты сайдбара, `tui.appendPrompt`/`submitPrompt`; модальный захват `Ctrl+X → Z` требует 1.18.31 — на 1.18.30 диалоги плагинов не получают Enter)
+- Рантайм-зависимости (`@opencode-ai/*`, `@opentui/*`, `solid-js`) ставятся автоматически вместе с npm-пакетом
 
 ## Установка
 
-Склонируйте репозиторий куда угодно (вне проекта — нормально):
+Добавьте плагин в `~/.config/opencode/opencode.json` (или в `opencode.json` проекта):
+
+```json
+{
+  "plugin": [
+    "opencode-idea-inbox"
+  ]
+}
+```
+
+Добавьте TUI-часть в `~/.config/opencode/tui.json` — то же голое имя, без subpath:
+
+```json
+{
+  "plugin": [
+    "opencode-idea-inbox"
+  ]
+}
+```
+
+opencode установит пакет из npm при следующем старте. Слэш-команды лоадером не
+поставляются — скопируйте два markdown-файла вручную:
+
+```bash
+mkdir -p ~/.config/opencode/command
+curl -fsSL -o ~/.config/opencode/command/idea.md https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/commands/idea.md
+curl -fsSL -o ~/.config/opencode/command/ideas.md https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/commands/ideas.md
+```
+
+<details>
+<summary>Установка из локального клона (для разработки)</summary>
 
 ```bash
 git clone https://github.com/apilot/opencode-idea-inbox.git ~/opencode-idea-inbox
 ```
 
-Зарегистрируйте серверную часть в `~/.config/opencode/opencode.json` (или в `opencode.json` проекта):
-
 ```json
-{
-  "plugin": [
-    "file:///home/YOU/opencode-idea-inbox"
-  ]
-}
+{ "plugin": ["file:///home/YOU/opencode-idea-inbox"] }
 ```
 
-Зарегистрируйте TUI-часть в `~/.config/opencode/tui.json` (обратите внимание на subpath `/tui`):
-
 ```json
-{
-  "plugin": [
-    "file:///home/YOU/opencode-idea-inbox/tui"
-  ]
-}
+{ "plugin": ["file:///home/YOU/opencode-idea-inbox/tui"] }
 ```
-
-Установите слэш-команды:
 
 ```bash
 cp ~/opencode-idea-inbox/commands/*.md ~/.config/opencode/command/
 ```
+
+</details>
 
 Добавьте `.opencode/idea-inbox/` в `.gitignore` проекта (там живёт база SQLite).
 
@@ -80,6 +99,7 @@ cp ~/opencode-idea-inbox/commands/*.md ~/.config/opencode/command/
 | Действие | Привязка |
 | -------- | -------- |
 | Открыть палитру с бэклогом | `Ctrl+X → I` (`<leader>i`; идеи первыми в Suggested, затем `✚ Новая идея…`) |
+| Модальный захват без модели | `Ctrl+X → Z` (`<leader>z`) |
 | Показать/скрыть сайдбар | `Ctrl+X → B` (`<leader>b`) |
 
 Лидер-ключ по умолчанию `Ctrl+X` (`leader_timeout` 2000 мс — вторую клавишу нажимайте в течение 2 секунд).
@@ -125,13 +145,15 @@ flowchart LR
     DB --> SB[Сайдбар Idea Inbox]
 ```
 
-Путь через палитру обходит известную проблему upstream: в opencode 1.18.30
-диалоги, открытые из TUI-плагинов, не получают клавиатурный ввод — поэтому
-плагин целиком построен на командах палитры, инъекции промта и слоте сайдбара.
+Путь через палитру обходит известную проблему upstream: в opencode ≤ 1.18.30
+диалоги, открытые из TUI-плагинов, не получают клавиатурный ввод
+([#22610](https://github.com/sst/opencode/issues/22610), закрыт как not planned).
+На 1.18.31 Enter в `DialogPrompt` работает — на этом построен модальный захват
+`Ctrl+X → Z`; всё остальное ездит на командах палитры, инъекции промта и слоте сайдбара.
 
 ## Ограничения
 
-- Специфика opencode 1.18.30: поле поиска программно открытой палитры может не принимать клавиши — основной интерфейс список Suggested (идеи всегда регистрируются первыми)
+- Специфика opencode 1.18.31: поле поиска программно открытой палитры может не принимать клавиши — основной интерфейс список Suggested (идеи всегда регистрируются первыми)
 - Сайдбар не открывается автоматически при появлении контента плагина (режим `auto` завязан на нативные todos) — включите один раз через `Ctrl+X → B`
 - В палитру попадают только `pending`-идеи
 
