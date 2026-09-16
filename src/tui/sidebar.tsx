@@ -5,6 +5,7 @@ import type { RGBA } from "@opentui/core"
 import type { TuiPluginApi, TuiSlotContext, TuiSlotPlugin, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import * as store from "../store.js"
 import { glyph, trim, type Idea, type IdeaStatus } from "../types.js"
+import { BUILD, create as createDiag } from "./diag.js"
 
 const LIMIT = 36
 const POLL_MS = 2000
@@ -28,14 +29,31 @@ function color(status: IdeaStatus, palette: TuiThemeCurrent): RGBA {
  * (ловит записи агента из любой сессии) + событие session.idle.
  */
 export function register(api: TuiPluginApi, root: () => string | undefined): () => void {
+  const diag = createDiag(root)
+  diag.log("sb.register", { build: BUILD })
   const [ideas, setIdeas] = createSignal<Idea[]>([])
+
+  // Диагностика живости: счётчик успешных чтений (раз в 30 — строка в лог)
+  // и дешёвый снапшот id:status — post-mortem видно, что сайдбар реально
+  // читает БД и реагирует на переходы статусов.
+  let refreshes = 0
+  let lastSnapshot = ""
 
   const refresh = () => {
     const worktree = root()
     if (worktree === undefined || worktree === "" || worktree === "/") return
     try {
-      setIdeas(store.active(worktree))
-    } catch {
+      const next = store.active(worktree)
+      refreshes++
+      const snapshot = next.map((idea) => `${idea.id}:${idea.status}`).join(",")
+      if (snapshot !== lastSnapshot) {
+        lastSnapshot = snapshot
+        diag.log("sb.change", { snapshot })
+      }
+      if (refreshes % 30 === 0) diag.log("sb.alive", { count: next.length })
+      setIdeas(next)
+    } catch (error) {
+      diag.log("sb.error", { message: String(error) })
       setIdeas([])
     }
   }
@@ -78,6 +96,7 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
   const unregister = api.slots.register(plugin) as unknown as () => void
 
   return () => {
+    diag.log("sb.unregister", {})
     offIdle()
     clearInterval(timer)
     try {

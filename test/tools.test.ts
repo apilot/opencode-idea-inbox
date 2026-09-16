@@ -217,6 +217,20 @@ describe("idea_update", () => {
     expect(store.find(worktree, idea.id)?.text).toBe("важный текст") // текст не тронут
   })
 
+  test("text patch rewrites the stored text (positive path beside the C1 guard)", async () => {
+    // Arrange — правка текста через тул проверена только на отказ (C1), позитивный путь — нет
+    const worktree = await root()
+    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const idea = store.add(worktree, "черновик формулировки")
+
+    // Act
+    const out = text(await tools.idea_update.execute({ id: idea.id, text: "уточнённая формулировка" }, ctx))
+
+    // Assert
+    expect(out).toContain("Обновлено")
+    expect(store.find(worktree, idea.id)?.text).toBe("уточнённая формулировка")
+  })
+
   test("store failure returns error string instead of throwing", async () => {
     const tools = create(badRoot, fakeClient("ses_x").client)
 

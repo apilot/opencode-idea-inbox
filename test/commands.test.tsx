@@ -22,11 +22,14 @@ interface LayerCall {
 }
 
 /** Минимальный api: keymap/ui/client пишутся в логи, рендер не нужен. */
-function stubApi() {
+function stubApi(opts: { submitFails?: boolean } = {}) {
   const layers: LayerCall[] = []
   const dispatched: string[] = []
   const toasts: string[] = []
   const prompts: string[] = []
+  const dialogRenders: (() => unknown)[] = []
+  const dialogPrompts: Record<string, unknown>[] = []
+  const dialogClears = { count: 0 }
   let failNextCount = 0
   const failNext = (count: number): void => {
     failNextCount = count
@@ -48,7 +51,18 @@ function stubApi() {
     },
     ui: {
       toast: ({ message }: { message: string }) => toasts.push(message),
-      dialog: { replace: () => {}, clear: () => {} },
+      dialog: {
+        replace: (render: () => unknown) => dialogRenders.push(render),
+        clear: () => {
+          dialogClears.count += 1
+        },
+      },
+      // solid-рантайм (jsx → createComponent) вызывает функцию-компонент
+      // синхронно с props: вызов render-колбэка отдаёт onConfirm без рендера
+      DialogPrompt: (props: Record<string, unknown>) => {
+        dialogPrompts.push(props)
+        return null
+      },
     },
     client: {
       tui: {
@@ -56,11 +70,24 @@ function stubApi() {
           prompts.push(text)
           return {}
         },
-        submitPrompt: async () => ({}),
+        submitPrompt: async () => {
+          if (opts.submitFails) throw new Error("submit boom")
+          return {}
+        },
       },
     },
   }
-  return { api: api as unknown as TuiPluginApi, layers, dispatched, toasts, prompts, failNext }
+  return {
+    api: api as unknown as TuiPluginApi,
+    layers,
+    dispatched,
+    toasts,
+    prompts,
+    failNext,
+    dialogRenders,
+    dialogPrompts,
+    dialogClears,
+  }
 }
 
 /** run()-колбэки делают структурные операции через setTimeout(0). */
@@ -128,6 +155,44 @@ describe("palette layer (normal mode)", () => {
     expect(prompts[0]).toContain("<<<")
     expect(prompts[0]).toContain(">>>")
     expect(prompts[0]).toContain("ДАННЫЕ")
+
+    off()
+  })
+
+  test("take command failure shows exactly one error toast, no success toast", async () => {
+    // Arrange — submitPrompt отклоняется: success-toast «▶ … отправлено» не
+    // должен появиться (регрессия двойного тоста: сначала «отправлено»,
+    // затем «не удалось»)
+    const dir = await root()
+    store.add(dir, "падающий сабмит")
+
+    const { api, layers, toasts } = stubApi({ submitFails: true })
+    const off = register(api, () => dir)
+
+    // Act
+    layers[0]?.commands[0]?.run()
+    await settle()
+
+    // Assert — ровно один error-toast, success-тост с ▶ отсутствует
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]).toContain("Не удалось отправить промт")
+    expect(toasts.some((message) => message.includes("▶"))).toBeFalse()
+
+    off()
+  })
+
+  test("new command appends /idea into the prompt line without submitting", async () => {
+    // Arrange
+    const dir = await root()
+    const { api, layers, prompts } = stubApi()
+    const off = register(api, () => dir)
+
+    // Act
+    byName(layers[0] as LayerCall, "idea-inbox:new")?.run()
+    await settle()
+
+    // Assert — только подстановка подсказки, автосабмита нет (допечатает сам)
+    expect(prompts).toEqual(["/idea "])
 
     off()
   })
@@ -244,6 +309,74 @@ describe("clear command", () => {
   })
 })
 
+describe("capture (модал <leader>z, DialogPrompt)", () => {
+  /** Модал ставится без setTimeout: render-колбэк отдаёт props синхронно. */
+  function openCapture(layers: LayerCall[], dialogRenders: (() => unknown)[], dialogPrompts: Record<string, unknown>[]) {
+    byName(layers[0] as LayerCall, "idea-inbox:capture")?.run()
+    expect(dialogRenders).toHaveLength(1)
+    dialogRenders[0]?.()
+    return dialogPrompts[0] as { onConfirm: (text: string) => void }
+  }
+
+  test("непустой текст сохраняется в стор обрезанной строкой, toast с ✓, диалог закрыт", async () => {
+    // Arrange
+    const dir = await root()
+    const { api, layers, dialogRenders, dialogPrompts, dialogClears, toasts } = stubApi()
+    const off = register(api, () => dir)
+
+    // Act — Enter в модале
+    const prompt = openCapture(layers, dialogRenders, dialogPrompts)
+    prompt.onConfirm("  записанная мысль  ")
+
+    // Assert — идея persisted в активных, подтверждение, диалог сброшен
+    const saved = store.active(dir)
+    expect(saved).toHaveLength(1)
+    expect(saved[0]?.text).toBe("записанная мысль")
+    expect(saved[0]?.status).toBe("pending")
+    expect(toasts.some((message) => message.startsWith("✓"))).toBeTrue()
+    expect(dialogClears.count).toBe(1)
+
+    off()
+  })
+
+  test("whitespace-only подтверждение ничего не пишет и не тостит, диалог закрыт", async () => {
+    // Arrange
+    const dir = await root()
+    const { api, layers, dialogRenders, dialogPrompts, dialogClears, toasts } = stubApi()
+    const off = register(api, () => dir)
+
+    // Act
+    const prompt = openCapture(layers, dialogRenders, dialogPrompts)
+    prompt.onConfirm("   \n\t ")
+
+    // Assert — стор нетронут, модал закрыт, лишних сообщений нет
+    expect(store.active(dir)).toHaveLength(0)
+    expect(toasts).toHaveLength(0)
+    expect(dialogClears.count).toBe(1)
+
+    off()
+  })
+
+  test("сбой стора показывает error-toast, диалог всё равно закрыт", async () => {
+    // Arrange — слой поднят на живом корне, стор «умер» к моменту Enter
+    // (мёртвый корень на регистрации не оставил бы слой вообще: tick глотает ошибку)
+    let dir = await root()
+    const { api, layers, dialogRenders, dialogPrompts, dialogClears, toasts } = stubApi()
+    const off = register(api, () => dir)
+    dir = "/proc/idea-inbox-cannot-exist"
+
+    // Act
+    const prompt = openCapture(layers, dialogRenders, dialogPrompts)
+    prompt.onConfirm("обречена")
+
+    // Assert — ошибка пользователю, модал не залипает
+    expect(toasts.some((message) => message.includes("Не удалось сохранить идею"))).toBeTrue()
+    expect(dialogClears.count).toBe(1)
+
+    off()
+  })
+})
+
 describe("layer invariants (регрессия смерти leader-биндингов)", () => {
   test("every registered layer: bindings reference commands present in that layer; delete layer has none", async () => {
     // Arrange — проходим нормальный режим и режим удаления
@@ -308,6 +441,99 @@ describe("layer invariants (регрессия смерти leader-биндин�
     const layer = layers[0] as LayerCall
     expect(layer.commands.length).toBeGreaterThan(0)
     expect(layer.bindings).toHaveLength(2)
+
+    off()
+  })
+})
+
+describe("инварианты обновления слоя (регрессия замерзания сайдбара 2026-09-16)", () => {
+  test("статусные переходы не перерегистрируют слой", async () => {
+    // Arrange — быстрый poll, но сигнатура от статусов не зависит
+    const dir = await root()
+    const idea = store.add(dir, "переживёт статусы")
+    const { api, layers } = stubApi()
+    const off = register(api, () => dir, { pollMs: 20 })
+    expect(layers).toHaveLength(1)
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(layers).toHaveLength(1)
+
+    // Act + Assert — pending → in_progress (делает тул idea_update): слой не тронут
+    store.update(dir, idea.id, { status: "in_progress" })
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(layers).toHaveLength(1)
+
+    // in_progress → done: снова без churn registerLayer/dispose
+    store.update(dir, idea.id, { status: "done" })
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(layers).toHaveLength(1)
+
+    off()
+  })
+
+  test("появление новой идеи перерегистрирует слой со свежей take-командой", async () => {
+    // Arrange
+    const dir = await root()
+    store.add(dir, "первая")
+    const { api, layers } = stubApi()
+    const off = register(api, () => dir, { pollMs: 20 })
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(layers).toHaveLength(1)
+
+    // Act
+    const second = store.add(dir, "вторая")
+    await new Promise((resolve) => setTimeout(resolve, 80))
+
+    // Assert — ровно один rebuild: новый слой знает вторую идею, прежний освобождён
+    expect(layers).toHaveLength(2)
+    expect(names(layers[1] as LayerCall)).toContain(`idea-inbox:take:${second.id}`)
+    expect((layers[0] as LayerCall).disposed).toBeTrue()
+    expect((layers[1] as LayerCall).disposed).not.toBeTrue()
+
+    off()
+  })
+
+  test("смена текста перерегистрирует слой: take-заголовок показывает новый текст", async () => {
+    // Arrange — в отличие от статусов, текст входит в сигнатуру через `${id}:${text}`
+    const dir = await root()
+    const idea = store.add(dir, "старая формулировка")
+    const { api, layers } = stubApi()
+    const off = register(api, () => dir, { pollMs: 20 })
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(layers).toHaveLength(1)
+
+    // Act — правка текста (тулом idea_update / capture-редактированием)
+    store.update(dir, idea.id, { text: "свежая формулировка" })
+    await new Promise((resolve) => setTimeout(resolve, 80))
+
+    // Assert — ровно один rebuild, take-команда ведёт себя как для новой идеи
+    expect(layers).toHaveLength(2)
+    const take = (layers[1] as LayerCall).commands.find((command) => command.name === `idea-inbox:take:${idea.id}`)
+    expect(take?.title).toContain("свежая формулировка")
+    expect(take?.title).not.toContain("старая")
+    expect((layers[0] as LayerCall).disposed).toBeTrue()
+    expect((layers[1] as LayerCall).disposed).not.toBeTrue()
+
+    off()
+  })
+})
+
+describe("take staleness guard (команда осталась от старого снапшота палитры)", () => {
+  test("take по устаревшей done-идее показывает toast и не отправляет промт", async () => {
+    // Arrange — слой построен, пока идея была pending
+    const dir = await root()
+    const idea = store.add(dir, "уже выполнена")
+    const { api, layers, prompts, toasts } = stubApi()
+    const off = register(api, () => dir)
+
+    // Act — done слой НЕ перестраивает (в этом суть фикса), take остаётся
+    // от старого снапшота; запуск должен быть перехвачен guard-ом
+    store.update(dir, idea.id, { status: "done" })
+    layers[0]?.commands[0]?.run()
+    await settle()
+
+    // Assert — промт не ушёл в основное окно, пользователь получил объяснение
+    expect(prompts).toHaveLength(0)
+    expect(toasts.some((message) => /уже не в очереди/.test(message))).toBeTrue()
 
     off()
   })

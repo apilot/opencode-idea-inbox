@@ -2,6 +2,7 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import * as store from "../store.js"
 import { trim, type Idea } from "../types.js"
+import { BUILD, create as createDiag } from "./diag.js"
 
 const LIMIT = 60
 const POLL_MS = 2000
@@ -30,20 +31,34 @@ const PALETTE = "command.palette.show"
  * команда «🗑 Удалить идею…» перерегистрирует слой с delete-командами и
  * переоткрывает палитру. tick(force) всегда возвращает слой к нормальному
  * виду — режим не залипает после Esc (следующий <leader>i = normal).
+ *
+ * opts.pollMs — интервал poll-тика; переопределяется в тестах (быстрый цикл
+ * без ожидания реальных 2 секунд).
  */
-export function register(api: TuiPluginApi, root: () => string | undefined): () => void {
+export function register(
+  api: TuiPluginApi,
+  root: () => string | undefined,
+  opts: { pollMs?: number } = {},
+): () => void {
+  const diag = createDiag(root)
   let layer: (() => void) | undefined
   // undefined = синхронизация ещё не выполнялась. Пустая строка — валидная
   // сигнатура пустого бэклога: если бы начальный stamp был "", первый tick
   // с пустым бэклогом выходил бы ранним возвратом и слой с биндингом
   // <leader>i никогда не регистрировался (наблюдалось вживую).
   let stamp: string | undefined
+  // Счётчик живости тиков: раз в 30 пишем строку в diag.log — post-mortem
+  // видно, что poll жив, даже если слой давно не перестраивался.
+  let ticks = 0
+  diag.log("cmd.register", { build: BUILD })
 
+  // Сигнатура НЕ зависит от статусов: переходы pending→in_progress→done
+  // (их делает агент тула idea_update) не должны перерегистрировать слой —
+  // churn registerLayer/dispose ломал реактивный рендер сайдбара
+  // (замороженный список, 2026-09-16). Rebuild — только вход/выход идей
+  // из активного набора (add/remove/clear/documented) и смена текста.
   const signature = (ideas: Idea[]): string =>
-    ideas
-      .filter((idea) => idea.status === "pending")
-      .map((idea) => `${idea.id}:${idea.text}`)
-      .join("|")
+    ideas.map((idea) => `${idea.id}:${idea.text}`).join("|")
 
   const mission = (idea: Idea): string =>
     [
@@ -60,13 +75,32 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
     ].join("\n")
 
   const take = (idea: Idea): void => {
+    // Guard устаревшей команды: слой больше не перестраивается на статусных
+    // переходах — take-команда может остаться от старого снапшота палитры.
+    try {
+      const worktree = root()
+      const fresh = worktree === undefined ? undefined : store.find(worktree, idea.id)
+      if (fresh === undefined || fresh.status !== "pending") {
+        api.ui.toast({
+          title: "idea-inbox",
+          message: `Идея ${idea.id} уже не в очереди (${fresh?.status ?? "удалена"})`,
+          variant: "error",
+        })
+        return
+      }
+    } catch {
+      // стор недоступен — не блокируем: миссия сама несёт idea_update-протокол
+    }
     api.client.tui
       .appendPrompt({ text: mission(idea) })
       .then(() => api.client.tui.submitPrompt())
+      .then(() => {
+        diag.log("cmd.take", { id: idea.id })
+        api.ui.toast({ title: "idea-inbox", message: `▶ ${idea.id} — отправлено в основное окно`, variant: "info" })
+      })
       .catch(() => {
         api.ui.toast({ title: "idea-inbox", message: "Не удалось отправить промт — попробуйте ещё раз", variant: "error" })
       })
-    api.ui.toast({ title: "idea-inbox", message: `▶ ${idea.id} — отправлено в основное окно`, variant: "info" })
   }
 
   /**
@@ -87,6 +121,7 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
               const worktree = root()
               if (worktree !== undefined) {
                 const idea = store.add(worktree, value)
+                diag.log("cmd.capture", { id: idea.id })
                 api.ui.toast({ title: "idea-inbox", message: `✓ ${idea.id} — ${trim(value, 40)}`, variant: "info" })
               }
             } catch {
@@ -116,6 +151,7 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
         variant: removed ? "info" : "error",
       })
       if (!removed) return
+      diag.log("cmd.remove", { id: idea.id })
     } catch {
       api.ui.toast({ title: "idea-inbox", message: "Не удалось удалить идею", variant: "error" })
       return
@@ -153,6 +189,7 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
           return
         }
         syncDelete(ideas)
+        diag.log("cmd.delete-mode", {})
         api.keymap.dispatchCommand(PALETTE)
       } catch {
         // Не различаем БД/keymap: в любом случае самолечение на тике
@@ -239,6 +276,7 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
           if (worktree === undefined) return
           try {
             const removed = store.clear(worktree)
+            diag.log("cmd.clear", { removed })
             api.ui.toast({ title: "idea-inbox", message: `✓ Список очищен — удалено ${removed}`, variant: "info" })
             tick(true)
           } catch {
@@ -326,24 +364,32 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
    * попытку, пустой бэклог больше не маскирует мёртвый слой.
    */
   const tick = (force = false): void => {
+    ticks++
     const worktree = root()
     if (worktree === undefined) return
     try {
       const ideas = store.active(worktree)
       const next = signature(ideas)
-      if (!force && stamp !== undefined && next === stamp) return
+      if (!force && stamp !== undefined && next === stamp) {
+        if (ticks % 30 === 0) diag.log("cmd.alive", { stamp })
+        return
+      }
       syncNormal(ideas)
       stamp = next
-    } catch {
+      diag.log("cmd.relayer", { reason: force ? "force" : "signature", signature: next })
+      if (ticks % 30 === 0) diag.log("cmd.alive", { stamp })
+    } catch (error) {
       // БД недоступна или регистрация слоя не удалась — повторим на тике
+      diag.log("cmd.error", { message: String(error) })
       stamp = undefined
     }
   }
 
   tick()
-  const timer = setInterval(tick, POLL_MS)
+  const timer = setInterval(tick, opts.pollMs ?? POLL_MS)
 
   return () => {
+    diag.log("cmd.unregister", {})
     clearInterval(timer)
     layer?.()
   }
