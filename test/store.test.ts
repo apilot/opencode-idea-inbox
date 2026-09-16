@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { active, add, byStatus, clear, find, forSession, load, sanitize, update, remove } from "../src/store.js"
+import { active, add, byStatus, claim, clear, find, forSession, load, sanitize, update, remove } from "../src/store.js"
 
 const roots: string[] = []
 
@@ -49,6 +49,15 @@ describe("sanitize", () => {
     expect(sanitize("\n\t  \n")).toBe("")
   })
 
+  test("unicode line separators collapse, invisible/bidi chars stripped", () => {
+    // U+2028/U+2029/U+0085 — разделители строк, нарушают однострочный контракт
+    expect(sanitize("a\u{2028}b\u{2029}c\u{85}d")).toBe("a b c d")
+    // zero-width (U+200B, U+FEFF) и bidi-override (U+202E) вырезаются
+    expect(sanitize("ви\u{200b}димый\u{200b}текст")).toBe("видимыйтекст")
+    expect(sanitize("\u{feff}префикс")).toBe("префикс")
+    expect(sanitize("текст\u{202e}перевёрнут")).toBe("текстперевёрнут")
+  })
+
   test("add and update store sanitized single-line text", async () => {
     // Arrange
     const worktree = await root()
@@ -88,6 +97,27 @@ describe("update", () => {
     const worktree = await root()
     const idea = add(worktree, "текст")
     expect(update(worktree, idea.id, {})?.updatedAt).toBe(idea.updatedAt)
+  })
+})
+
+describe("claim", () => {
+  test("claims pending idea atomically, second claim loses", async () => {
+    // Arrange
+    const worktree = await root()
+    const idea = add(worktree, "гонка")
+
+    // Act + Assert — первый захват проходит, второй видит уже in_progress
+    expect(claim(worktree, idea.id)).toBeTrue()
+    expect(find(worktree, idea.id)?.status).toBe("in_progress")
+    expect(claim(worktree, idea.id)).toBeFalse()
+  })
+
+  test("unknown id or non-pending status returns false", async () => {
+    const worktree = await root()
+    expect(claim(worktree, "idea_missing")).toBeFalse()
+    const done = add(worktree, "готово")
+    update(worktree, done.id, { status: "done" })
+    expect(claim(worktree, done.id)).toBeFalse()
   })
 })
 

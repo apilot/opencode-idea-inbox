@@ -46,18 +46,23 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
   const offIdle = api.event.on("session.idle", refresh)
 
   const render = (ctx: Readonly<TuiSlotContext>, _props: { session_id: string }): JSX.Element => {
-    const items = ideas()
+    // Срез по LIMIT: гигантский бэклог не должен рендерить сотни строк
+    // каждые 2 секунды — хвост показываем счётчиком.
+    const all = ideas()
+    const items = all.slice(0, LIMIT)
+    const rest = all.length - items.length
     const palette = ctx.theme.current
 
     return (
       <box>
-        <text fg={palette.primary}>{`Idea Inbox (${items.length})`}</text>
+        <text fg={palette.primary}>{`Idea Inbox (${all.length})`}</text>
         {items.length === 0 && <text fg={palette.textMuted}>пусто — leader+z записать идею</text>}
         {items.map((idea) => (
           <text fg={color(idea.status, palette)} truncate>
             {`${glyph(idea.status)} ${trim(idea.text, LIMIT)}`}
           </text>
         ))}
+        {rest > 0 && <text fg={palette.textMuted}>{`…и ещё ${rest}`}</text>}
       </box>
     )
   }

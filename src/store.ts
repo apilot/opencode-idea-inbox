@@ -11,12 +11,15 @@ function dir(worktree: string): string {
 /**
  * Канонизация текста идеи: ровно одна строка. Переносы, табы и
  * повторные пробелы схлопываются в один пробел, края обрезаются.
- * Многострочный ввод (textarea модала, /idea с цитатой) не должен
- * ломать таблицы и однострочный контракт тула idea_add.
+ * Unicode-разделители строк (U+0085, U+2028, U+2029) приравнены к
+ * переносу; невидимые символы (zero-width, bidi-переопределения)
+ * вырезаются — они нарушают однострочный контракт и позволяют
+ * визуально подменять текст в сайдбаре и таблицах.
  */
 export function sanitize(text: string): string {
   return text
-    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[\r\n\t\u0085\u2028\u2029]+/g, " ")
+    .replace(/[\u200b-\u200d\u2060\ufeff\u202a-\u202e\u2066-\u2069]/g, "")
     .replace(/ {2,}/g, " ")
     .trim()
 }
@@ -26,7 +29,24 @@ function dbFile(worktree: string): string {
 }
 
 // Один коннект на файл в рамках процесса; WAL допускает параллельный доступ TUI и сервера.
+// Глобальный сервер-инстанс может обслужить много worktree за время жизни —
+// пул ограничен (LRU по порядку Map), иначе fd расходуются неограниченно.
+const MAX_CONNECTIONS = 16
 const connections = new Map<string, Database>()
+
+function evict(except: string): void {
+  while (connections.size > MAX_CONNECTIONS) {
+    const oldest = connections.keys().next().value
+    if (oldest === undefined || oldest === except) break
+    const db = connections.get(oldest)
+    connections.delete(oldest)
+    try {
+      db?.close()
+    } catch {
+      // уже закрыт
+    }
+  }
+}
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS ideas (
@@ -45,13 +65,23 @@ const SCHEMA = `
 export function connect(worktree: string): Database {
   const file = dbFile(worktree)
   const existing = connections.get(file)
-  if (existing) return existing
+  if (existing) {
+    // LRU touch: передвигаем в конец как самый свежий.
+    connections.delete(file)
+    connections.set(file, existing)
+    return existing
+  }
 
   fs.mkdirSync(dir(worktree), { recursive: true })
   const database = new Database(file)
   database.exec("PRAGMA journal_mode = WAL;")
+  // Несколько копий opencode пишут в одну БД: дефолтный busy_timeout у
+  // bun:sqlite — 0мс, и конкурентная запись мгновенно падает с
+  // "database is locked". 5с ожидания покрывает любой autocommit-конфликт.
+  database.exec("PRAGMA busy_timeout = 5000;")
   database.exec(SCHEMA)
   connections.set(file, database)
+  evict(file)
   return database
 }
 
@@ -119,11 +149,21 @@ export function add(worktree: string, text: string, originSessionID: string | nu
     originSessionID,
     sessionID: null,
   }
-  connect(worktree).run(
-    "INSERT INTO ideas (id, text, status, created_at, updated_at, origin_session_id, session_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [idea.id, idea.text, idea.status, idea.createdAt, idea.updatedAt, idea.originSessionID, idea.sessionID],
-  )
-  return idea
+  const db = connect(worktree)
+  for (let attempt = 0; ; attempt++) {
+    try {
+      db.run(
+        "INSERT INTO ideas (id, text, status, created_at, updated_at, origin_session_id, session_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [idea.id, idea.text, idea.status, idea.createdAt, idea.updatedAt, idea.originSessionID, idea.sessionID],
+      )
+      return idea
+    } catch (error) {
+      // PK-коллизия (пространство 36^6): крайне маловероятна, но без повтора
+      // превращается в несанкционированный сбой тула. Перегенерируем id.
+      if (attempt >= 4 || !/PRIMARYKEY/i.test(String(error))) throw error
+      idea.id = mint()
+    }
+  }
 }
 
 export interface Patch {
@@ -163,6 +203,20 @@ export function update(worktree: string, id: string, patch: Patch, now: Date = n
 export function find(worktree: string, id: string): Idea | undefined {
   const row = connect(worktree).query("SELECT * FROM ideas WHERE id = ?").get(id) as Row | null
   return row === null ? undefined : toIdea(row) ?? undefined
+}
+
+/**
+ * Атомарный захват идеи под запуск: pending → in_progress одним UPDATE
+ * с условием статуса. False, если идея уже не pending (запущена другим
+ * процессом/вызовом) — снимает TOCTOU-гонку в idea_start.
+ */
+export function claim(worktree: string, id: string, now: Date = new Date()): boolean {
+  return (
+    connect(worktree).run("UPDATE ideas SET status = 'in_progress', updated_at = ? WHERE id = ? AND status = 'pending'", [
+      now.toISOString(),
+      id,
+    ]).changes > 0
+  )
 }
 
 /** Жёсткое удаление одной идеи; false, если id не найден. */

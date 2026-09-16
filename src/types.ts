@@ -30,8 +30,9 @@ export function isIdea(value: unknown): value is Idea {
   )
 }
 
-/** Обрезает текст до max символов с многоточием. */
+/** Обрезает текст до max символов с многоточием. Неположительный max — пустая строка. */
 export function trim(text: string, max: number): string {
+  if (max <= 0) return ""
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`
 }
 

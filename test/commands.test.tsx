@@ -124,6 +124,10 @@ describe("palette layer (normal mode)", () => {
     expect(prompts[0]).toContain(idea.id)
     expect(prompts[0]).toContain("status=in_progress")
     expect(prompts[0]).toContain("status=done")
+    // текст идеи обрамлён как данные (анти-инъекция)
+    expect(prompts[0]).toContain("<<<")
+    expect(prompts[0]).toContain(">>>")
+    expect(prompts[0]).toContain("ДАННЫЕ")
 
     off()
   })

@@ -46,12 +46,22 @@ const plugin: Plugin = async (input) => {
     tool: create(root, input.client),
 
     event: async ({ event }) => {
-      if (event.type === "session.idle") {
-        settle(root(), event.properties.sessionID, "idle")
-        return
-      }
-      if (event.type === "session.deleted") {
-        settle(root(), event.properties.info.id, "deleted")
+      // Стор может быть временно недоступен (конкурентная запись → BUSY
+      // после таймаута): событие не должно ронять хендлер — статус
+      // доедет следующим событием или ручным idea_update.
+      try {
+        if (event.type === "session.idle") {
+          const sessionID = event.properties?.sessionID
+          if (typeof sessionID === "string") settle(root(), sessionID, "idle")
+          return
+        }
+        if (event.type === "session.deleted") {
+          // Форма события не гарантирована рантаймом: info может отсутствовать.
+          const deletedID = event.properties?.info?.id
+          if (typeof deletedID === "string") settle(root(), deletedID, "deleted")
+        }
+      } catch {
+        // транзиентная ошибка стора — молча пропускаем
       }
     },
   }

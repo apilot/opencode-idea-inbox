@@ -63,6 +63,23 @@ function fakeClient(sessionID: string): ClientSpy {
   return spy
 }
 
+/** SDK-клиент, у которого API лежит: session.create бросает. */
+function failingClient(): Client {
+  return {
+    session: {
+      create: async () => {
+        throw new Error("api down")
+      },
+      promptAsync: async () => {
+        throw new Error("api down")
+      },
+    },
+  } as unknown as Client
+}
+
+/** Корень, в котором стор не может создать каталог (например, /proc). */
+const badRoot = () => "/proc/idea-inbox-cannot-exist"
+
 describe("idea_add", () => {
   test("saves pending idea and answers with id and resume directive", async () => {
     // Arrange
@@ -99,6 +116,23 @@ describe("idea_add", () => {
     await tools.idea_add.execute({ text: "строка один\nстрока два" }, ctx)
 
     expect(store.active(worktree)[0]?.text).toBe("строка один строка два")
+  })
+
+  test("saves origin session id from tool context", async () => {
+    const worktree = await root()
+    const tools = create(() => worktree, fakeClient("ses_x").client)
+
+    await tools.idea_add.execute({ text: "идея из сессии" }, ctx)
+
+    expect(store.active(worktree)[0]?.originSessionID).toBe("ses_test")
+  })
+
+  test("store failure returns error string instead of throwing", async () => {
+    const tools = create(badRoot, fakeClient("ses_x").client)
+
+    const out = text(await tools.idea_add.execute({ text: "обречена" }, ctx))
+
+    expect(out).toContain("Ошибка хранилища")
   })
 })
 
@@ -171,6 +205,25 @@ describe("idea_update", () => {
     expect(out).toContain("в архиве")
     expect(store.find(worktree, idea.id)?.status).toBe("documented")
   })
+
+  test("blank text is rejected without erasing the stored idea (C1)", async () => {
+    const worktree = await root()
+    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const idea = store.add(worktree, "важный текст")
+
+    const out = text(await tools.idea_update.execute({ id: idea.id, text: "   " }, ctx))
+
+    expect(out).toContain("пустой текст")
+    expect(store.find(worktree, idea.id)?.text).toBe("важный текст") // текст не тронут
+  })
+
+  test("store failure returns error string instead of throwing", async () => {
+    const tools = create(badRoot, fakeClient("ses_x").client)
+
+    const out = text(await tools.idea_update.execute({ id: "idea_x", status: "done" }, ctx))
+
+    expect(out).toContain("Ошибка хранилища")
+  })
 })
 
 describe("idea_start", () => {
@@ -212,11 +265,29 @@ describe("idea_start", () => {
     const created = spy.created.value as { body: { title: string } }
     expect(created.body.title).toContain("написать тесты плагина")
 
-    // Миссия адресована фоновой сессии, билд-агенту, с инструкцией idea_update
+    // Миссия адресована фоновой сессии, билд-агенту, с инструкцией idea_update;
+    // текст идеи обрамлён как данные (анти-инъекция)
     const prompted = spy.prompted.value as { path: { id: string }; body: { agent: string; parts: { text: string }[] } }
     expect(prompted.path.id).toBe("ses_bg_1")
     expect(prompted.body.agent).toBe("build")
     expect(prompted.body.parts[0]?.text).toContain(idea.id)
     expect(prompted.body.parts[0]?.text).toContain("idea_update")
+    expect(prompted.body.parts[0]?.text).toContain("<<<")
+    expect(prompted.body.parts[0]?.text).toContain(">>>")
+  })
+
+  test("api failure rolls the idea back to pending (C2)", async () => {
+    // Arrange
+    const worktree = await root()
+    const tools = create(() => worktree, failingClient())
+    const idea = store.add(worktree, "упадёт при запуске")
+
+    // Act
+    const out = text(await tools.idea_start.execute({ id: idea.id }, ctx))
+
+    // Assert — идея не залипла in_progress без сессии
+    expect(out).toContain("возвращена в pending")
+    expect(store.find(worktree, idea.id)?.status).toBe("pending")
+    expect(store.find(worktree, idea.id)?.sessionID).toBeNull()
   })
 })

@@ -64,6 +64,11 @@ describe("trim", () => {
     expect(out.startsWith("семьс")).toBeTrue()
     expect(out.endsWith("…")).toBeTrue()
   })
+
+  test("non-positive max yields empty string (latent bug guard)", () => {
+    expect(trim("текст", 0)).toBe("")
+    expect(trim("текст", -3)).toBe("")
+  })
 })
 
 describe("glyph", () => {

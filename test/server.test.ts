@@ -84,4 +84,26 @@ describe("session.deleted", () => {
 
     expect(store.find(worktree, idea.id)?.status).toBe("pending")
   })
+
+  test("malformed event without info does not throw (H3)", async () => {
+    const worktree = await root()
+    const event = await handler(worktree)
+    const idea = store.add(worktree, "целость")
+
+    // Акт — properties без info и без sessionID не должен ронять хендлер
+    await event({ event: { type: "session.deleted", properties: {} } })
+    await event({ event: { type: "session.idle", properties: {} } })
+    await event({ event: { type: "session.deleted", properties: undefined } })
+
+    expect(store.find(worktree, idea.id)?.status).toBe("pending")
+  })
+
+  test("store failure inside settle does not throw (H2)", async () => {
+    // корень, в котором стор не может создать каталог: бросок хендлера
+    // упадёт прямо на await — до конца теста дело не дойдёт
+    const event = await handler("/proc/idea-inbox-cannot-exist")
+
+    await event({ event: { type: "session.idle", properties: { sessionID: "ses_any" } } })
+    await event({ event: { type: "session.deleted", properties: { info: { id: "ses_any" } } } })
+  })
 })
