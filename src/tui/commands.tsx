@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import * as store from "../store.js"
 import { trim, type Idea } from "../types.js"

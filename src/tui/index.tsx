@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import type { TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { register as registerCommands } from "./commands.js"
 import { create as createRoot } from "./root.js"

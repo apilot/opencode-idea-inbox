@@ -1,6 +1,6 @@
 {
   "name": "opencode-idea-inbox",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "opencode plugin: capture ideas to a sidebar backlog mid-conversation, then dispatch them from the command palette into the current session or background sessions",
   "license": "MIT",
   "author": "apilot",
@@ -30,6 +30,7 @@
   "files": [
     "src",
     "commands",
+    "tsconfig.json",
     "README.md",
     "README.ru.md",
     "LICENSE"
@@ -43,7 +44,7 @@
     "@opencode-ai/sdk": "^1.18.31",
     "@opentui/keymap": "^0.5.11",
     "@opentui/solid": "^0.5.11",
-    "solid-js": "^1.9.0"
+    "solid-js": "1.9.12"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
