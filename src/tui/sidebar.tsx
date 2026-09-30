@@ -2,7 +2,7 @@
 import { createSignal } from "solid-js"
 import type { JSX } from "solid-js"
 import type { RGBA } from "@opentui/core"
-import type { TuiPluginApi, TuiSlotContext, TuiSlotPlugin, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
+import type { Plugin } from "@opencode/plugin/tui"
 import * as store from "../store.js"
 import { glyph, trim, type Idea, type IdeaStatus } from "../types.js"
 import { BUILD, create as createDiag } from "./diag.js"
@@ -10,25 +10,25 @@ import { BUILD, create as createDiag } from "./diag.js"
 const LIMIT = 36
 const POLL_MS = 2000
 
-function color(status: IdeaStatus, palette: TuiThemeCurrent): RGBA {
+function color(status: IdeaStatus, theme: Plugin.Context["theme"]): RGBA {
   switch (status) {
     case "pending":
-      return palette.textMuted
+      return theme.text.muted
     case "in_progress":
-      return palette.info
+      return theme.text.feedback.info.base
     case "done":
-      return palette.success
+      return theme.text.feedback.success.base
     case "documented":
-      return palette.textMuted
+      return theme.text.muted
   }
 }
 
 /**
- * Сайдбар: живой список активых идей в слоте sidebar_content.
+ * Сайдбар: живой список активых идей в слоте sidebar.content.
  * SQLite в WAL-режиме читается напрямую; обновление — короткий poll
  * (ловит записи агента из любой сессии) + событие session.idle.
  */
-export function register(api: TuiPluginApi, root: () => string | undefined): () => void {
+export function register(ctx: Plugin.Context, root: () => string | undefined): () => void {
   const diag = createDiag(root)
   diag.log("sb.register", { build: BUILD })
   const [ideas, setIdeas] = createSignal<Idea[]>([])
@@ -61,39 +61,32 @@ export function register(api: TuiPluginApi, root: () => string | undefined): () 
   // Короткий poll ловит записи агента из любой сессии (тулы idea_*),
   // событие session.idle — момент завершения фоновой работы.
   const timer = setInterval(refresh, POLL_MS)
-  const offIdle = api.event.on("session.idle", refresh)
+  const offIdle = ctx.data.on("session.idle", refresh)
 
-  const render = (ctx: Readonly<TuiSlotContext>, _props: { session_id: string }): JSX.Element => {
-    // Срез по LIMIT: гигантский бэклог не должен рендерить сотни строк
-    // каждые 2 секунды — хвост показываем счётчиком.
-    const all = ideas()
-    const items = all.slice(0, LIMIT)
-    const rest = all.length - items.length
-    const palette = ctx.theme.current
+  const unregister = ctx.ui.slot({
+    append: "sidebar.content",
+    render: (): JSX.Element => {
+      // Срез по LIMIT: гигантский бэклог не должен рендерить сотни строк
+      // каждые 2 секунды — хвост показываем счётчиком.
+      const all = ideas()
+      const items = all.slice(0, LIMIT)
+      const rest = all.length - items.length
+      const theme = ctx.theme
 
-    return (
-      <box>
-        <text fg={palette.primary}>{`Idea Inbox (${all.length})`}</text>
-        {items.length === 0 && <text fg={palette.textMuted}>пусто — leader+z записать идею</text>}
-        {items.map((idea) => (
-          <text fg={color(idea.status, palette)} truncate>
-            {`${glyph(idea.status)} ${trim(idea.text, LIMIT)}`}
-          </text>
-        ))}
-        {rest > 0 && <text fg={palette.textMuted}>{`…и ещё ${rest}`}</text>}
-      </box>
-    )
-  }
-
-  // SDK 1.4.9: тип TuiSlotPlugin объявляет id как never, но рантайм-контракт
-  // @opentui/core Plugin требует строковый id — приводим осознанно.
-  const plugin = {
-    id: "idea-inbox.sidebar",
-    order: 100,
-    slots: { sidebar_content: render },
-  } as unknown as TuiSlotPlugin
-
-  const unregister = api.slots.register(plugin) as unknown as () => void
+      return (
+        <box>
+          <text fg={theme.text.base}>{`Idea Inbox (${all.length})`}</text>
+          {items.length === 0 && <text fg={theme.text.muted}>пусто — leader+z записать идею</text>}
+          {items.map((idea) => (
+            <text fg={color(idea.status, theme)} truncate>
+              {`${glyph(idea.status)} ${trim(idea.text, LIMIT)}`}
+            </text>
+          ))}
+          {rest > 0 && <text fg={theme.text.muted}>{`…и ещё ${rest}`}</text>}
+        </box>
+      )
+    },
+  })
 
   return () => {
     diag.log("sb.unregister", {})

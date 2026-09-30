@@ -1,26 +1,26 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui"
+import { Plugin } from "@opencode/plugin/tui"
 import { register as registerCommands } from "./commands.js"
 import { create as createRoot } from "./root.js"
 import { register as registerSidebar } from "./sidebar.js"
 
 /**
- * TUI-часть idea-inbox (концепция v2): нативный выбор идеи из палитры
- * (Ctrl+X → I), запуск в основное окно через tui.appendPrompt/submitPrompt,
+ * TUI-часть idea-inbox (V2 CLI plugin): палитра/dialog-выбор идеи из
+ * бэклога, отправка миссии в текущую сессию через session.prompt,
  * сайдбар со статусами. Данные и тулы агента — в серверной части.
  *
- * Важно: в момент активации api.state.path.worktree навсегда "/" — любые
- * обращения к стору должны читать путь лениво (см. root.ts).
+ * Путь локации может быть не заполнен в момент активации — любые
+ * обращения к стору читают его лениво (см. root.ts).
  */
-const plugin: TuiPlugin = async (api) => {
-  const root = createRoot(api)
-  const offCommands = registerCommands(api, root)
-  const offSidebar = registerSidebar(api, root)
-  api.lifecycle.onDispose(() => {
-    offCommands()
-    offSidebar()
-  })
-}
-
-export const tui: TuiPlugin = plugin
-export default { id: "idea-inbox", tui: plugin } satisfies TuiPluginModule
+export default Plugin.define({
+  id: "idea-inbox.tui",
+  setup(ctx) {
+    const root = createRoot(ctx)
+    const offCommands = registerCommands(ctx, root)
+    const offSidebar = registerSidebar(ctx, root)
+    return () => {
+      offCommands()
+      offSidebar()
+    }
+  },
+})

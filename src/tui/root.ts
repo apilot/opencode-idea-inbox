@@ -1,20 +1,20 @@
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Plugin } from "@opencode/plugin/tui"
 import { execSync } from "node:child_process"
 
 /**
  * Резолвер корня проекта для TUI-части.
  *
- * api.state.path.worktree в TUI-процессе — статический снимок на момент
- * активации плагинов и навсегда "/" (проверено на 1.18.30). Реальный корень
- * берём из state.path.directory + git rev-parse --show-toplevel с кешем на
- * directory; fallback — directory, затем cwd процесса.
+ * ctx.location в CLI-плагине опционален (может быть undefined до
+ * инициализации); источник правды — data.location.default(). Реальный
+ * корень берём git rev-parse --show-toplevel с кешем на directory;
+ * fallback — directory, затем cwd процесса.
  */
-export function create(api: TuiPluginApi): () => string | undefined {
+export function create(ctx: Plugin.Context): () => string | undefined {
   let cachedRoot: string | undefined
   let cachedFrom = ""
 
   return () => {
-    const directory = api.state.path.directory
+    const directory = ctx.location?.directory ?? ctx.data.location.default().directory
     if (directory === undefined || directory === "" || directory === "/") return process.cwd()
     if (cachedFrom === directory && cachedRoot !== undefined) return cachedRoot
     try {
