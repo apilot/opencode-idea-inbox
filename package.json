@@ -29,6 +29,9 @@
   "files": [
     "src",
     "commands",
+    "index.ts",
+    "server.ts",
+    "tui.ts",
     "tsconfig.json",
     "README.md",
     "README.ru.md",
