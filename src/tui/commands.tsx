@@ -252,28 +252,41 @@ export function register(
 
   // Реактивный слой: чтение ideas() внутри фабрики связывает слой с
   // сигналом — Solid перестраивает команды при изменении набора идей.
-  ctx.keymap.layer(() => ({
-    mode: "global",
-    // Держим идеи первыми в Suggested-секции палитры.
-    priority: 100,
-    commands: [
-      ...ideas()
-        .filter((idea) => idea.status === "pending")
-        .map((idea) => ({
-          id: `idea-inbox.take.${idea.id}`,
-          title: `▸ ${trim(idea.text, LIMIT)}`,
-          description: `взять в работу (${idea.id})`,
-          group: "Idea Inbox",
-          palette: true as const,
-          suggested: true as const,
-          run: () => take(idea),
-        })),
-      ...staticCommands,
-    ],
-  }))
+  //
+  // Слоем обязан владеть смонтированный компонент (типы: layer — «owned by
+  // the calling component»): вызов из setup() падает «Keymap.Provider is
+  // missing» и валит весь TUI-плагин. Поэтому слой живёт в невидимом слоте
+  // app — render() всегда внутри дерева TUI и ничего не рисует (каноничный
+  // паттерн из доков V2 / образца dcp).
+  const offLayer = ctx.ui.slot({
+    append: "app",
+    render() {
+      ctx.keymap.layer(() => ({
+        mode: "global",
+        // Держим идеи первыми в Suggested-секции палитры.
+        priority: 100,
+        commands: [
+          ...ideas()
+            .filter((idea) => idea.status === "pending")
+            .map((idea) => ({
+              id: `idea-inbox.take.${idea.id}`,
+              title: `▸ ${trim(idea.text, LIMIT)}`,
+              description: `взять в работу (${idea.id})`,
+              group: "Idea Inbox",
+              palette: true as const,
+              suggested: true as const,
+              run: () => take(idea),
+            })),
+          ...staticCommands,
+        ],
+      }))
+      return null
+    },
+  })
 
   return () => {
     diag.log("cmd.unregister", {})
+    offLayer()
     clearInterval(timer)
   }
 }

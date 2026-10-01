@@ -44,6 +44,7 @@ function stubTui(opts: { promptFails?: boolean } = {}) {
   const factories: (() => LayerSnapshot)[] = []
   const prompts: { sessionID: string; text: string }[] = []
   const toasts: { message: string; variant: string }[] = []
+  const slots: { append: string }[] = []
   const dialogs = { prompt: [] as unknown[], select: [] as unknown[], confirm: [] as unknown[] }
   // Управляемые ответы диалогов и текущий роут — выставляются в тестах.
   const answers = {
@@ -61,6 +62,14 @@ function stubTui(opts: { promptFails?: boolean } = {}) {
       },
     },
     ui: {
+      // Слой keymap создаётся только внутри смонтированного render()
+      // (вне дерева TUI хост бросает «Keymap.Provider is missing») —
+      // стаб монтирует render немедленно, как это делает хост.
+      slot: (claim: { append: string; render: () => unknown }) => {
+        slots.push({ append: claim.append })
+        claim.render()
+        return () => {}
+      },
       toast: { show: (toast: { message: string; variant: string }) => toasts.push(toast) },
       dialog: {
         prompt: async (args: unknown) => {
@@ -89,7 +98,7 @@ function stubTui(opts: { promptFails?: boolean } = {}) {
     },
   } as unknown as Plugin.Context
 
-  return { ctx, factories, prompts, toasts, answers, dialogs }
+  return { ctx, factories, prompts, toasts, answers, dialogs, slots }
 }
 
 /** Хост читает слой повторно при изменении сигнала — эмулируем это вручную. */
@@ -126,6 +135,8 @@ describe("keymap-слой", () => {
     // Assert — состав, порядок и биндинги
     expect(snapshot.mode).toBe("global")
     expect(snapshot.priority).toBe(100)
+    // Слой обязан владеть смонтированный компонент слота app
+    expect(stub.slots).toEqual([{ append: "app" }])
     expect(ids(snapshot)).toEqual([
       `idea-inbox.take.${pending.id}`,
       "idea-inbox.open",
