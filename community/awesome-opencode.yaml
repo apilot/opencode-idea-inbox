@@ -1,17 +1,18 @@
 name: Idea Inbox
 repo: https://github.com/apilot/opencode-idea-inbox
-tagline: Capture ideas into a sidebar backlog mid-conversation, then dispatch them from the command palette
+tagline: Capture stray thoughts into a sidebar backlog, then dispatch them to agents without derailing your session
 description: >-
-  A persistent idea backlog for the opencode TUI. Capture a stray thought
-  mid-conversation with /idea (or the "New idea" palette entry) without leaving
-  your current task, watch ideas and their statuses live in the Idea Inbox
-  sidebar, then dispatch any pending idea straight from the command palette:
-  a delegation mission is injected into the main window and execution starts
-  immediately, with in_progress/done statuses set by the agent itself.
-  Alternatively run ideas in background sessions. Storage is per-worktree
-  SQLite, so the backlog survives restarts; documented ideas are archived as
-  history. Built entirely on supported plugin APIs (keymap layers, sidebar
-  slots, prompt injection via the SDK).
+  A persistent idea backlog for the opencode v2 TUI. Mid-conversation, press
+  leader+z (or run /idea) to park a thought in the Idea Inbox sidebar without
+  leaving your current task — no notes app, no derailing the agent. When you
+  have a free moment, press leader+i and pick a pending idea: a delegation
+  mission goes into your session, a background session picks it up, and the
+  sidebar status flips from parked to running to done as the agent works.
+  Agents can manage the backlog themselves through idea_add/idea_list/
+  idea_update/idea_start tools, and a "documented" status archives an idea
+  after its result is written up. Storage is per-worktree SQLite, so the
+  backlog survives restarts. Ships for opencode v2 (this entry) and as a
+  legacy v1 line: opencode-idea-inbox@legacy-v1.
 scope:
   - global
   - project
@@ -21,36 +22,24 @@ tags:
   - tui
   - sidebar
   - workflow
-min_version: "1.18.31"
+min_version: "2.0.20"
 installation: |
-  ## Installation
+  ## Installation (opencode v2)
 
-  Add the plugin to `~/.config/opencode/opencode.json`:
+  Add one line to the `plugins` key of your `opencode.json` — global
+  (`~/.config/opencode/opencode.json`) or per-project:
 
-  ```json
+  ```jsonc
   {
-    "plugin": [
-      "opencode-idea-inbox"
-    ]
+    "plugins": ["opencode-idea-inbox"]
   }
   ```
 
-  Add the TUI part to `~/.config/opencode/tui.json` — same bare name:
+  One entry loads both halves of the plugin: the server part (tools, events,
+  slash commands) and the TUI part (sidebar, hotkeys). Restart opencode.
 
-  ```json
-  {
-    "plugin": [
-      "opencode-idea-inbox"
-    ]
-  }
-  ```
+  Note: opencode v2 reads the `plugins` key (plural). The v1 `plugin` key is
+  silently ignored — that is the #1 "it doesn't load" cause.
 
-  Install the slash commands and restart opencode:
-
-  ```bash
-  mkdir -p ~/.config/opencode/command
-  curl -fsSL -o ~/.config/opencode/command/idea.md https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/commands/idea.md
-  curl -fsSL -o ~/.config/opencode/command/ideas.md https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/commands/ideas.md
-  ```
-
-  Requires opencode 1.18.31+.
+  On opencode v1? Install the legacy line instead:
+  `"plugin": ["opencode-idea-inbox@legacy-v1"]`.

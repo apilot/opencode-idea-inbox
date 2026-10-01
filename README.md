@@ -25,13 +25,14 @@ its status tick over:
 
 The sidebar mid-session looks like this:
 
-```text
-┌ Idea Inbox (3) ──────────────────────┐
-│ ◐ cache provider responses           │
-│ ○ try opencode-pty for the test UI   │
-│ ○ write up: pitfalls of TUI plugins  │
-└──────────────────────────────────────┘
-```
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.png" alt="opencode session with the Idea Inbox sidebar showing three ideas with different statuses" width="640">
+
+<details>
+<summary>▶ Watch the full loop — capture an idea, dispatch it, watch it finish (GIF, ~10 s)</summary>
+
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.gif" alt="GIF: pressing leader+z to capture a thought into the sidebar, then dispatching it from the palette and watching the status flip to done" width="640">
+
+</details>
 
 ## Which version do I need?
 

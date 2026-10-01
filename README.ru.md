@@ -24,13 +24,14 @@
 
 Сайдбар в середине сессии выглядит так:
 
-```text
-┌ Idea Inbox (3) ──────────────────────┐
-│ ◐ кэшировать ответы провайдера       │
-│ ○ попробовать opencode-pty для тестов│
-│ ○ заметка: подводные камни TUI-плагинов │
-└──────────────────────────────────────┘
-```
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.png" alt="Сессия opencode с сайдбаром Idea Inbox: три идеи с разными статусами" width="640">
+
+<details>
+<summary>▶ Посмотреть весь цикл — захват идеи, отправка в работу, завершение (GIF, ~10 с)</summary>
+
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.gif" alt="GIF: leader+z захватывает мысль в сайдбар, затем идея отправляется из палитры и статус меняется на done" width="640">
+
+</details>
 
 ## Какая версия мне нужна?
 
