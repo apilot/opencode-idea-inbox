@@ -40,8 +40,8 @@ There are two lines of this package, one per major version of opencode:
 
 | Your opencode              | Install                            | Where it lives |
 | -------------------------- | ---------------------------------- | -------------- |
-| **v2** (≥ 2.0.20)         | `opencode-idea-inbox` (`latest`)   | branch [`v2-port`](https://github.com/apilot/opencode-idea-inbox/tree/v2-port) |
-| **v1**                    | `opencode-idea-inbox@legacy-v1` (currently 0.3.5) | branch [`master`](https://github.com/apilot/opencode-idea-inbox/tree/master) |
+| **v2** (≥ 2.0.20)         | `opencode-idea-inbox` (`latest`)   | branch [`master`](https://github.com/apilot/opencode-idea-inbox/tree/master) (default) |
+| **v1**                    | `opencode-idea-inbox@legacy-v1` (currently 0.3.5) | branch [`legacy-v1`](https://github.com/apilot/opencode-idea-inbox/tree/legacy-v1) |
 
 Not sure what you're running? Check `opencode --version`.
 

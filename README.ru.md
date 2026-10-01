@@ -39,8 +39,8 @@
 
 | Ваш opencode           | Устанавливать                          | Где живёт |
 | ---------------------- | -------------------------------------- | --------- |
-| **v2** (≥ 2.0.20)      | `opencode-idea-inbox` (`latest`)       | ветка [`v2-port`](https://github.com/apilot/opencode-idea-inbox/tree/v2-port) |
-| **v1**                 | `opencode-idea-inbox@legacy-v1` (сейчас 0.3.5) | ветка [`master`](https://github.com/apilot/opencode-idea-inbox/tree/master) |
+| **v2** (≥ 2.0.20)      | `opencode-idea-inbox` (`latest`)       | ветка [`master`](https://github.com/apilot/opencode-idea-inbox/tree/master) (по умолчанию) |
+| **v1**                 | `opencode-idea-inbox@legacy-v1` (сейчас 0.3.5) | ветка [`legacy-v1`](https://github.com/apilot/opencode-idea-inbox/tree/legacy-v1) |
 
 Не уверены, что у вас? Проверьте `opencode --version`.
 
