@@ -1,7 +1,7 @@
 {
   "name": "opencode-idea-inbox",
-  "version": "0.5.4",
-  "description": "opencode plugin: capture ideas to a sidebar backlog mid-conversation, then dispatch them from the command palette into the current session or background sessions",
+  "version": "0.5.5",
+  "description": "Never lose a stray thought in opencode: park ideas in a sidebar backlog mid-conversation, then dispatch them to agents when you're ready (opencode v2 plugin; v1 users -> opencode-idea-inbox@legacy-v1)",
   "license": "MIT",
   "author": "apilot",
   "repository": {
