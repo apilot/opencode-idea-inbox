@@ -16,7 +16,7 @@ TUI. Захватите мысль по ходу диалога, не теряя
 
 > **У вас opencode v1?** Этот пакет (≥ 0.4.0) работает только с plugin API
 > **opencode v2**. Для opencode v1 ставьте линию v1:
-> `opencode-idea-inbox@0.3.5` (npm dist-tag `v1`) — см.
+> `opencode-idea-inbox@legacy-v1` (npm dist-tag `legacy-v1`, сейчас 0.3.5) — см.
 > [ветку v1](https://github.com/apilot/opencode-idea-inbox/tree/master).
 
 ## Возможности

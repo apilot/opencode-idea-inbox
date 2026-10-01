@@ -16,7 +16,7 @@ mid-dialog ──/idea "add cache"──▶ ○ pending ──palette: <leader>i
 
 > **Using opencode v1?** This package (≥ 0.4.0) targets the opencode **v2**
 > plugin API. For opencode v1 install the v1 line instead:
-> `opencode-idea-inbox@0.3.5` (npm dist-tag `v1`) — see
+> `opencode-idea-inbox@legacy-v1` (npm dist-tag `legacy-v1`, currently 0.3.5) — see
 > [the v1 branch](https://github.com/apilot/opencode-idea-inbox/tree/master).
 
 ## Features
