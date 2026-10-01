@@ -1,5 +1,16 @@
 # opencode-idea-inbox
 
+> [!WARNING]
+> **Это legacy-линия для opencode v1** (ветка `master`, npm dist-tag `v1`).
+> Получает только критические исправления.
+> Для opencode **v2** (≥ 2.0.20) используйте актуальный релиз:
+>
+> ```json
+> { "plugins": ["opencode-idea-inbox"] }
+> ```
+>
+> (это dist-tag `latest` — см. README ветки `v2-port`).
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![opencode](https://img.shields.io/badge/opencode-%E2%89%A51.18.31-blue)](https://opencode.ai)
 

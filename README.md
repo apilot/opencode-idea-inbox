@@ -1,5 +1,16 @@
 # opencode-idea-inbox
 
+> [!WARNING]
+> **This is the legacy line for opencode v1** (kept on the `master` branch,
+> npm dist-tag `v1`). It only receives critical fixes.
+> For opencode **v2** (≥ 2.0.20) use the current release instead:
+>
+> ```json
+> { "plugins": ["opencode-idea-inbox"] }
+> ```
+>
+> (that installs the `latest` dist-tag — see the `v2-port` branch README).
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![opencode](https://img.shields.io/badge/opencode-%E2%89%A51.18.31-blue)](https://opencode.ai)
 

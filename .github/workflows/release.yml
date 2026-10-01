@@ -1,0 +1,50 @@
+# Publishes the legacy v1 line to npm under the `v1` dist-tag when a v* tag
+# is pushed from the master branch.
+#
+# Required secret: NPM_TOKEN (npm access token with publish rights for
+# opencode-idea-inbox). Add it under Settings → Secrets and variables → Actions.
+#
+# Deliberately minimal: no install/typecheck steps — the v1 dependency tree
+# (@opencode-ai/plugin 1.x) is legacy. Publishing is just `npm publish`,
+# which packs the files list as-is.
+name: Release (v1 line)
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify tag matches package version
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+
+      - name: Publish to npm (v1 dist-tag)
+        run: npm publish --access public --tag v1
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            Legacy v1 line (opencode ≥ 1.18.31, plugin API 1.x).
+            Published under the `v1` npm dist-tag; `latest` points to the
+            opencode v2 release — see the `v2-port` branch.
