@@ -115,6 +115,8 @@ Relative paths work too (`"./plugins/idea-inbox"`); the root-level `server.ts`
 | ------ | ------- |
 | Open the backlog picker | `<leader>i` (command `idea-inbox.open`) |
 | Quick capture dialog (no model involved) | `<leader>z` (command `idea-inbox.capture`) |
+| Remove one idea | `idea-inbox.remove` (palette only, picker dialog) |
+| Clear the visible list | `idea-inbox.clear` (palette only, asks for confirmation; the `documented` archive stays) |
 | Show/hide the sidebar | your opencode sidebar toggle |
 
 All commands have stable ids (`idea-inbox.open`, `idea-inbox.capture`,
@@ -154,9 +156,10 @@ The plugin registers four tools your agents can call:
 ## FAQ
 
 **Where is my data stored?**
-In `<worktree>/.opencode/idea-inbox/ideas.db` — a plain SQLite database (WAL
-mode), one per git worktree. It survives restarts. Add
-`.opencode/idea-inbox/` to your project's `.gitignore`.
+In `<worktree>/.opencode/idea-inbox/` — a plain SQLite database `ideas.db`
+(WAL mode) plus `diag.log`, the plugin's diagnostic log. Both live one per
+git worktree and survive restarts. Add `.opencode/idea-inbox/` to your
+project's `.gitignore`.
 
 **I ran `/idea <text>` and the chat stayed silent. Did it work?**
 Yes — with text present the command writes straight to the backlog without a
@@ -166,6 +169,11 @@ model round-trip, so there's no reply in the chat. Check the sidebar or run
 **The sidebar is empty even though I have ideas.**
 The panel refreshes every ~2 seconds and never force-opens itself — toggle it
 once with your sidebar keybind.
+
+**Something is off — where can I look for clues?**
+The TUI part appends what it does to
+`<worktree>/.opencode/idea-inbox/diag.log` (registrations, refresh ticks,
+errors; rotated at ~128 KB). The file is safe to delete at any time.
 
 **Can I rebind `<leader>i` / `<leader>z`?**
 Yes — see the command ids above and the `keybinds` section of your `cli.json`.

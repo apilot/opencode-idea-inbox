@@ -6,8 +6,9 @@ description: >-
   leader+z (or run /idea) to park a thought in the Idea Inbox sidebar without
   leaving your current task — no notes app, no derailing the agent. When you
   have a free moment, press leader+i and pick a pending idea: a delegation
-  mission goes into your session, a background session picks it up, and the
-  sidebar status flips from parked to running to done as the agent works.
+  mission lands in your current session and execution starts immediately,
+  while the sidebar status flips from parked to running to done as the agent
+  works.
   Agents can manage the backlog themselves through idea_add/idea_list/
   idea_update/idea_start tools, and a "documented" status archives an idea
   after its result is written up. Storage is per-worktree SQLite, so the

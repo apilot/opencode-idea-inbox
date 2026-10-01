@@ -114,6 +114,8 @@ git clone https://github.com/apilot/opencode-idea-inbox.git ~/opencode-idea-inbo
 | -------- | -------- |
 | Открыть пикер бэклога | `<leader>i` (команда `idea-inbox.open`) |
 | Быстрый захват без модели | `<leader>z` (команда `idea-inbox.capture`) |
+| Удалить одну идею | `idea-inbox.remove` (только палитра, через пикер) |
+| Очистить видимый список | `idea-inbox.clear` (только палитра, с подтверждением; архив `documented` остаётся) |
 | Показать/скрыть сайдбар | нативный переключатель opencode |
 
 У всех команд стабильные id (`idea-inbox.open`, `idea-inbox.capture`,
@@ -153,9 +155,10 @@ git clone https://github.com/apilot/opencode-idea-inbox.git ~/opencode-idea-inbo
 ## Частые вопросы
 
 **Где хранятся данные?**
-В `<worktree>/.opencode/idea-inbox/ideas.db` — обычная SQLite-база (режим
-WAL), по одной на git-worktree. Переживает рестарты. Добавьте
-`.opencode/idea-inbox/` в `.gitignore` проекта.
+В `<worktree>/.opencode/idea-inbox/` — SQLite-база `ideas.db` (режим WAL) и
+`diag.log`, диагностический лог плагина. Оба файла — по одному на
+git-worktree и переживают рестарты. Добавьте `.opencode/idea-inbox/` в
+`.gitignore` проекта.
 
 **Я запустил `/idea <текст>`, а в чате тишина. Сработало?**
 Да — с текстом команда пишет напрямую в бэклог, без обращения к модели,
@@ -164,6 +167,11 @@ WAL), по одной на git-worktree. Переживает рестарты. 
 **Сайдбар пустой, хотя идеи есть.**
 Панель обновляется каждые ~2 секунды и никогда не открывается принудительно —
 включите её один раз нативным переключателем.
+
+**Что-то работает не так — где посмотреть?**
+TUI-часть пишет свои действия в
+`<worktree>/.opencode/idea-inbox/diag.log` (регистрации, тики обновления,
+ошибки; ротация при ~128 КБ). Файл можно безопасно удалять в любой момент.
 
 **Можно перебиндить `<leader>i` / `<leader>z`?**
 Да — id команд выше, секция `keybinds` в вашем `cli.json`.
