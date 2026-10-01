@@ -1,6 +1,5 @@
 /** @jsxImportSource @opentui/solid */
-import { createSignal } from "solid-js"
-import type { JSX } from "solid-js"
+import type { JSX } from "@opentui/solid"
 import type { RGBA } from "@opentui/core"
 import type { Plugin } from "@opencode/plugin/tui"
 import * as store from "../store.js"
@@ -27,11 +26,20 @@ function color(status: IdeaStatus, theme: Plugin.Context["theme"]): RGBA {
  * Сайдбар: живой список активых идей в слоте sidebar.content.
  * SQLite в WAL-режиме читается напрямую; обновление — короткий poll
  * (ловит записи агента из любой сессии) + событие session.idle.
+ *
+ * Реактивное состояние — ctx.storage.memory (стор хоста): чтения внутри
+ * JSX-функций трекаются эффектами того же экземпляра solid, что и рендер.
+ * opts.pollMs переопределяется в тестах.
  */
-export function register(ctx: Plugin.Context, root: () => string | undefined): () => void {
+export function register(
+  ctx: Plugin.Context,
+  root: () => string | undefined,
+  opts: { pollMs?: number } = {},
+): () => void {
   const diag = createDiag(root)
   diag.log("sb.register", { build: BUILD })
-  const [ideas, setIdeas] = createSignal<Idea[]>([])
+  const [state, setState] = ctx.storage.memory("idea-inbox.sidebar", { initial: { ideas: [] as Idea[] } })
+  const ideas = (): Idea[] => state.ideas
 
   // Диагностика живости: счётчик успешных чтений (раз в 30 — строка в лог)
   // и дешёвый снапшот id:status — post-mortem видно, что сайдбар реально
@@ -51,16 +59,21 @@ export function register(ctx: Plugin.Context, root: () => string | undefined): (
         diag.log("sb.change", { snapshot })
       }
       if (refreshes % 30 === 0) diag.log("sb.alive", { count: next.length })
-      setIdeas(next)
+      setState((draft) => {
+        draft.ideas = next
+      })
     } catch (error) {
       diag.log("sb.error", { message: String(error) })
-      setIdeas([])
+      setState((draft) => {
+        draft.ideas = []
+      })
     }
   }
 
   // Короткий poll ловит записи агента из любой сессии (тулы idea_*),
   // событие session.idle — момент завершения фоновой работы.
-  const timer = setInterval(refresh, POLL_MS)
+  // opts.pollMs переопределяется в тестах.
+  const timer = setInterval(refresh, opts.pollMs ?? POLL_MS)
   const offIdle = ctx.data.on("session.idle", refresh)
 
   const unregister = ctx.ui.slot({

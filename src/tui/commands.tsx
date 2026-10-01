@@ -1,5 +1,4 @@
 /** @jsxImportSource @opentui/solid */
-import { createSignal } from "solid-js"
 import type { Plugin } from "@opencode/plugin/tui"
 import * as store from "../store.js"
 import { glyph, trim, type Idea } from "../types.js"
@@ -11,16 +10,16 @@ const POLL_MS = 2000
 /**
  * Команды TUI idea-inbox (V2).
  *
- * Per-idea take-команды живут в реактивном keymap-слое: layer() читает
- * Solid-сигнал списка идей, и хост сам перестраивает слой при входе/выходе
- * идей из активного набора — ручной relayer и его churn (V1) не нужны.
+ * Реактивное состояние — ctx.storage.memory: стор создаёт ХОСТ, значит он
+ * живёт в том же экземпляре solid, что и эффекты, пересобирающие keymap-слой.
+ * (Свой createSignal из "solid-js" в bun-окружении попадает в server-сборку
+ * и остаётся невидимым для эффектов рендерера.)
+ *
+ * Per-idea take-команды живут в реактивном keymap-слое: фабрика слоя читает
+ * стор, и хост сам перестраивает слой при входе/выходе идей из активного
+ * набора — ручной relayer и его churn (V1) не нужны.
  * Сигнатура не зависит от статусов: переходы pending→in_progress→done
  * не перестраивают слой.
- *
- * Выбор идеи — dialog.select (в V2 диалоги плагинов получают клавиатуру —
- * V1-hack с программным открытием нативной палитры больше не нужен);
- * per-idea палитра остаётся быстрым путём (palette: true, suggested: true).
- * Миссия отправляется в текущую сессию через client.session.prompt.
  *
  * opts.pollMs — интервал poll-тика; переопределяется в тестах.
  */
@@ -33,7 +32,9 @@ export function register(
   diag.log("cmd.register", { build: BUILD })
 
   // Реактивный снапшот активных идей для слоя и диалогов.
-  const [ideas, setIdeas] = createSignal<Idea[]>([])
+  const [state, setState] = ctx.storage.memory("idea-inbox.commands", { initial: { ideas: [] as Idea[] } })
+  // Аксессор сохраняет форму чтения ideas() в JSX/фабриках.
+  const ideas = (): Idea[] => state.ideas
   // undefined = синхронизация ещё не выполнялась. Пустая строка — валидная
   // сигнатура пустого бэклога.
   let stamp: string | undefined
@@ -44,7 +45,7 @@ export function register(
   const signature = (list: Idea[]): string => list.map((idea) => `${idea.id}:${idea.text}`).join("|")
 
   /**
-   * Тик синхронизации: обновляет сигнал при изменении сигнатуры.
+   * Тик синхронизации: обновляет стор при изменении сигнатуры.
    * Самолечение: stamp сбрасывается при любой ошибке (БД) — следующий
    * тик повторяет попытку, пустой бэклог не маскирует мёртвый слой.
    */
@@ -57,7 +58,9 @@ export function register(
       const sig = signature(next)
       if (sig !== stamp) {
         stamp = sig
-        setIdeas(next)
+        setState((draft) => {
+          draft.ideas = next
+        })
         diag.log("cmd.relayer", { signature: sig })
       }
       if (ticks % 30 === 0) diag.log("cmd.alive", { stamp })

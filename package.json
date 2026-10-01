@@ -1,6 +1,6 @@
 {
   "name": "opencode-idea-inbox",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "opencode plugin: capture ideas to a sidebar backlog mid-conversation, then dispatch them from the command palette into the current session or background sessions",
   "license": "MIT",
   "author": "apilot",

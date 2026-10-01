@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { createStore, produce } from "solid-js/store/dist/store.js"
 import type { Plugin } from "@opencode/plugin/tui"
 import { register } from "../src/tui/commands.js"
 import * as store from "../src/store.js"
@@ -39,6 +40,16 @@ interface LayerSnapshot {
   commands: LayerCommand[]
 }
 
+/**
+ * memory-стор как у хоста: реальный solid-store (клиентская сборка через
+ * алиас), мутатор — функция над драфтом. Ключ игнорируем — каждый стаб
+ * изолирован.
+ */
+function memoryStore() {
+  const [state, setState] = createStore({ ideas: [] as unknown[] })
+  return [state, (mutation: (draft: { ideas: unknown[] }) => void) => setState(produce(mutation))] as const
+}
+
 /** Минимальный TUI-контекст: слой/диалоги/тосты/роутер пишутся в логи. */
 function stubTui(opts: { promptFails?: boolean } = {}) {
   const factories: (() => LayerSnapshot)[] = []
@@ -55,6 +66,7 @@ function stubTui(opts: { promptFails?: boolean } = {}) {
   }
 
   const ctx = {
+    storage: { memory: (_key: string, _options: { initial: object }) => memoryStore() },
     keymap: {
       layer: (factory: () => LayerSnapshot) => {
         factories.push(factory)

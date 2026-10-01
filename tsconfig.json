@@ -16,7 +16,16 @@
     "jsx": "react-jsx",
     "jsxImportSource": "@opentui/solid",
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    // Bun-резолвер для bare "solid-js" берёт node-условие пакета —
+    // dist/server.js (SSR-сборка: эффекты одноразовые, реактивности нет).
+    // Рендерер @opentui/solid (его bun-сборка импортирует bare "solid-js")
+    // рассчитан на клиентскую dist/solid.js. Алиасим оба спецификатора на
+    // клиентские сборки — сигналы, сторы и эффекты живут в одном экземпляре
+    // solid. Типы deep-импортов: src/types/solid-deep.d.ts.
+    "paths": {
+      "solid-js": ["./node_modules/solid-js/dist/solid.js"]
+    }
   },
   "include": [
     "src",
