@@ -2,9 +2,6 @@
 #
 # Required secret: NPM_TOKEN (npm access token with publish rights for
 # opencode-idea-inbox). Add it under Settings → Secrets and variables → Actions.
-#
-# Note: the bun-based test suite still targets the v1 plugin API and is
-# intentionally not run here; `tsc --noEmit` gates the publish instead.
 name: Release
 
 on:
@@ -30,6 +27,11 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Test
+        run: bun test
+
       - name: Verify tag matches package version
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
@@ -40,7 +42,7 @@ jobs:
           fi
 
       - name: Publish to npm
-        run: npm publish --access public
+        run: npm publish --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -54,10 +56,15 @@ jobs:
             - Server: `Plugin.define({ id, setup(ctx) })` entrypoint, tools via
               `ctx.tool.transform`, session settle via `ctx.event.subscribe`,
               `idea_start` uses `ctx.session.create` + `ctx.session.prompt`
+            - Native `/idea` and `/ideas` slash commands registered via
+              `ctx.command.transform` — no manual copying of command files
             - CLI/TUI: reactive `ctx.keymap.layer` (palette takeover hack and
               delete-mode removed), dialogs/toasts via `ctx.ui`, sidebar via
               `ctx.ui.slot({ append: "sidebar.content" })`, theme tokens from
               `ctx.theme`
             - Local-path installs: root `server.ts` / `index.ts` / `tui.ts`
               re-exports (v2.0.20 ignores package.json exports for local dirs)
+            - Install with the v2 `plugins` key (single entry loads both server
+              and TUI parts); see README for details
+            - Test suite fully ported to the v2 API (`bun test`, 77 tests)
             - Store format unchanged — existing ideas.db data keeps working

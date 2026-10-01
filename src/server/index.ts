@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin"
 import * as store from "../store.js"
+import { create as createCommands } from "./commands.js"
 import { create } from "./tools.js"
 
 /**
@@ -64,6 +65,11 @@ export default Plugin.define({
       for (const tool of create(root, ctx)) editor.add(tool)
     })
 
+    // Нативные слэш-команды /idea и /ideas — замена v1-markdown из commands/.
+    const commands = await ctx.command.transform((editor) => {
+      for (const command of createCommands(root, ctx)) editor.add(command)
+    })
+
     // Шина событий: idle отмечает работу ideas выполненной, deleted
     // возвращает их в очередь. AbortSignal из cleanup останавливает цикл.
     const controller = new AbortController()
@@ -93,6 +99,7 @@ export default Plugin.define({
     return () => {
       controller.abort()
       void tools.dispose()
+      void commands.dispose()
     }
   },
 })

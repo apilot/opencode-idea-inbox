@@ -2,9 +2,17 @@ import { afterEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import type { ToolContext, ToolResult } from "@opencode-ai/plugin"
+import type { Plugin } from "@opencode/plugin"
+import type { Info, Result, ToolContext } from "@opencode/plugin/promise/tool"
 import { create } from "../src/server/tools.js"
 import * as store from "../src/store.js"
+
+/** V2 create() возвращает массив — доступ к тулу по имени. */
+const tool = (tools: Info[], name: string): Info => {
+  const found = tools.find((candidate) => candidate.name === name)
+  if (found === undefined) throw new Error(`тул ${name} не зарегистрирован`)
+  return found
+}
 
 const roots: string[] = []
 
@@ -19,62 +27,62 @@ afterEach(async () => {
   roots.length = 0
 })
 
-/** Тулы игнорируют context, но контракт требует его presence. */
-const ctx = {
-  sessionID: "ses_test",
-  messageID: "msg_test",
-  agent: "build",
-  directory: "/tmp",
-  worktree: "/tmp",
-  abort: new AbortController().signal,
-  metadata: () => {},
-  ask: async () => {},
+/** Тулы игнорируют большую часть контекста, но контракт требует его presence. */
+const toolCtx = {
+  sessionID: "ses_test" as ToolContext["sessionID"],
+  agent: "build" as ToolContext["agent"],
+  messageID: "msg_test" as ToolContext["messageID"],
+  id: "call_test" as ToolContext["id"],
+  signal: new AbortController().signal,
+  progress: async () => {},
 } satisfies ToolContext
 
-const text = (result: ToolResult): string => (typeof result === "string" ? result : result.output)
+/** V2-тулы отвечают Result{content}, а не строкой. */
+const text = (result: Result): string => (typeof result === "string" ? result : (result.content as string) ?? "")
 
-type Client = Parameters<typeof create>[1]
+type ServerContext = Parameters<typeof create>[1]
 
-interface ClientSpy {
-  client: Client
+interface SessionSpy {
+  ctx: ServerContext
   created: { value: unknown }
   prompted: { value: unknown }
 }
 
-/** SDK-клиент с записью вызовов: idea_start создаёт сессию и шлёт промт. */
-function fakeClient(sessionID: string): ClientSpy {
-  const spy: ClientSpy = {
+/** Plugin.Context с записью вызовов: idea_start создаёт сессию и шлёт промт. */
+function fakeSession(sessionID: string): SessionSpy {
+  const spy: SessionSpy = {
     created: { value: undefined },
     prompted: { value: undefined },
-    client: undefined as unknown as Client,
+    ctx: undefined as unknown as ServerContext,
   }
-  spy.client = {
+  spy.ctx = {
     session: {
+      // V2: create возвращает SessionInfo напрямую, prompt принимает {sessionID, text}
       create: async (args: unknown) => {
         spy.created.value = args
-        return { data: { id: sessionID } }
+        return { id: sessionID }
       },
-      promptAsync: async (args: unknown) => {
+      prompt: async (args: unknown) => {
         spy.prompted.value = args
         return {}
       },
     },
-  } as unknown as Client
+  } as unknown as ServerContext
   return spy
 }
 
-/** SDK-клиент, у которого API лежит: session.create бросает. */
-function failingClient(): Client {
+/** Контекст, у которого API лежит: session.create бросает. */
+function failingSession(): ServerContext {
   return {
     session: {
       create: async () => {
         throw new Error("api down")
       },
-      promptAsync: async () => {
+      prompt: async () => {
         throw new Error("api down")
       },
     },
-  } as unknown as Client
+  } as unknown as ServerContext
 }
 
 /** Корень, в котором стор не может создать каталог (например, /proc). */
@@ -84,10 +92,10 @@ describe("idea_add", () => {
   test("saves pending idea and answers with id and resume directive", async () => {
     // Arrange
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
 
     // Act
-    const out = text(await tools.idea_add.execute({ text: "добавить поиск" }, ctx))
+    const out = text(await tool(tools, "idea_add").execute({ text: "добавить поиск" }, toolCtx))
 
     // Assert
     const saved = store.active(worktree)
@@ -95,15 +103,15 @@ describe("idea_add", () => {
     expect(saved[0]?.status).toBe("pending")
     expect(out).toContain(saved[0]?.id ?? "")
     expect(out).toContain("Активных в бэклоге: 1")
-    // директива возобновления прерванной задачи (фикс «прерывается и останавливается»)
+    // директива возобновления прерванной задачи
     expect(out).toContain("немедленно продолжи")
   })
 
   test("empty text is rejected without touching the store", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
 
-    const out = text(await tools.idea_add.execute({ text: "   " }, ctx))
+    const out = text(await tool(tools, "idea_add").execute({ text: "   " }, toolCtx))
 
     expect(out).toContain("пустой текст")
     expect(store.active(worktree)).toHaveLength(0)
@@ -111,26 +119,26 @@ describe("idea_add", () => {
 
   test("multiline text is sanitized to one line", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
 
-    await tools.idea_add.execute({ text: "строка один\nстрока два" }, ctx)
+    await tool(tools, "idea_add").execute({ text: "строка один\nстрока два" }, toolCtx)
 
     expect(store.active(worktree)[0]?.text).toBe("строка один строка два")
   })
 
   test("saves origin session id from tool context", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
 
-    await tools.idea_add.execute({ text: "идея из сессии" }, ctx)
+    await tool(tools, "idea_add").execute({ text: "идея из сессии" }, toolCtx)
 
     expect(store.active(worktree)[0]?.originSessionID).toBe("ses_test")
   })
 
   test("store failure returns error string instead of throwing", async () => {
-    const tools = create(badRoot, fakeClient("ses_x").client)
+    const tools = create(badRoot, fakeSession("ses_x").ctx)
 
-    const out = text(await tools.idea_add.execute({ text: "обречена" }, ctx))
+    const out = text(await tool(tools, "idea_add").execute({ text: "обречена" }, toolCtx))
 
     expect(out).toContain("Ошибка хранилища")
   })
@@ -139,9 +147,9 @@ describe("idea_add", () => {
 describe("idea_list", () => {
   test("empty backlog reports emptiness", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
 
-    expect(text(await tools.idea_list.execute({}, ctx))).toContain("Бэклог пуст")
+    expect(text(await tool(tools, "idea_list").execute({}, toolCtx))).toContain("Бэклог пуст")
   })
 
   test("renders markdown table of active ideas only", async () => {
@@ -152,7 +160,7 @@ describe("idea_list", () => {
     store.update(worktree, first.id, { status: "documented" })
 
     // Act
-    const out = text(await create(() => worktree, fakeClient("ses_x").client).idea_list.execute({}, ctx))
+    const out = text(await tool(create(() => worktree, fakeSession("ses_x").ctx), "idea_list").execute({}, toolCtx))
 
     // Assert — documented скрыт, активная в таблице со своим id
     expect(out.startsWith("| id | статус | идея |")).toBeTrue()
@@ -162,12 +170,12 @@ describe("idea_list", () => {
 
   test("status filter returns exactly that status", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
     const done = store.add(worktree, "выполнено")
     store.add(worktree, "ждёт")
     store.update(worktree, done.id, { status: "done" })
 
-    const out = text(await tools.idea_list.execute({ status: "done" }, ctx))
+    const out = text(await tool(tools, "idea_list").execute({ status: "done" }, toolCtx))
 
     expect(out).toContain("выполнено")
     expect(out).not.toContain("ждёт")
@@ -177,10 +185,10 @@ describe("idea_list", () => {
 describe("idea_update", () => {
   test("unknown status is rejected with the allowed list", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
     const idea = store.add(worktree, "текст")
 
-    const out = text(await tools.idea_update.execute({ id: idea.id, status: "archived" }, ctx))
+    const out = text(await tool(tools, "idea_update").execute({ id: idea.id, status: "archived" }, toolCtx))
 
     expect(out).toContain("неизвестный статус")
     expect(out).toContain("pending | in_progress | done | documented")
@@ -189,17 +197,17 @@ describe("idea_update", () => {
 
   test("unknown id reports not found", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
 
-    expect(text(await tools.idea_update.execute({ id: "idea_missing", status: "done" }, ctx))).toContain("не найдена")
+    expect(text(await tool(tools, "idea_update").execute({ id: "idea_missing", status: "done" }, toolCtx))).toContain("не найдена")
   })
 
   test("documented status mentions archive hiding", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
     const idea = store.add(worktree, "в архив")
 
-    const out = text(await tools.idea_update.execute({ id: idea.id, status: "documented" }, ctx))
+    const out = text(await tool(tools, "idea_update").execute({ id: idea.id, status: "documented" }, toolCtx))
 
     expect(out).toContain("documented")
     expect(out).toContain("в архиве")
@@ -208,10 +216,10 @@ describe("idea_update", () => {
 
   test("blank text is rejected without erasing the stored idea (C1)", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
     const idea = store.add(worktree, "важный текст")
 
-    const out = text(await tools.idea_update.execute({ id: idea.id, text: "   " }, ctx))
+    const out = text(await tool(tools, "idea_update").execute({ id: idea.id, text: "   " }, toolCtx))
 
     expect(out).toContain("пустой текст")
     expect(store.find(worktree, idea.id)?.text).toBe("важный текст") // текст не тронут
@@ -220,11 +228,11 @@ describe("idea_update", () => {
   test("text patch rewrites the stored text (positive path beside the C1 guard)", async () => {
     // Arrange — правка текста через тул проверена только на отказ (C1), позитивный путь — нет
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
     const idea = store.add(worktree, "черновик формулировки")
 
     // Act
-    const out = text(await tools.idea_update.execute({ id: idea.id, text: "уточнённая формулировка" }, ctx))
+    const out = text(await tool(tools, "idea_update").execute({ id: idea.id, text: "уточнённая формулировка" }, toolCtx))
 
     // Assert
     expect(out).toContain("Обновлено")
@@ -232,9 +240,9 @@ describe("idea_update", () => {
   })
 
   test("store failure returns error string instead of throwing", async () => {
-    const tools = create(badRoot, fakeClient("ses_x").client)
+    const tools = create(badRoot, fakeSession("ses_x").ctx)
 
-    const out = text(await tools.idea_update.execute({ id: "idea_x", status: "done" }, ctx))
+    const out = text(await tool(tools, "idea_update").execute({ id: "idea_x", status: "done" }, toolCtx))
 
     expect(out).toContain("Ошибка хранилища")
   })
@@ -243,18 +251,18 @@ describe("idea_update", () => {
 describe("idea_start", () => {
   test("unknown id reports not found", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
 
-    expect(text(await tools.idea_start.execute({ id: "idea_missing" }, ctx))).toContain("не найдена")
+    expect(text(await tool(tools, "idea_start").execute({ id: "idea_missing" }, toolCtx))).toContain("не найдена")
   })
 
   test("rejects ideas that are not pending", async () => {
     const worktree = await root()
-    const tools = create(() => worktree, fakeClient("ses_x").client)
+    const tools = create(() => worktree, fakeSession("ses_x").ctx)
     const idea = store.add(worktree, "уже в работе")
     store.update(worktree, idea.id, { status: "in_progress" })
 
-    const out = text(await tools.idea_start.execute({ id: idea.id }, ctx))
+    const out = text(await tool(tools, "idea_start").execute({ id: idea.id }, toolCtx))
 
     expect(out).toContain("только pending")
   })
@@ -262,12 +270,12 @@ describe("idea_start", () => {
   test("creates background session, prompts mission, marks in_progress", async () => {
     // Arrange
     const worktree = await root()
-    const spy = fakeClient("ses_bg_1")
-    const tools = create(() => worktree, spy.client)
+    const spy = fakeSession("ses_bg_1")
+    const tools = create(() => worktree, spy.ctx)
     const idea = store.add(worktree, "написать тесты плагина")
 
     // Act
-    const out = text(await tools.idea_start.execute({ id: idea.id }, ctx))
+    const out = text(await tool(tools, "idea_start").execute({ id: idea.id }, toolCtx))
 
     // Assert — статус и ответ
     const stored = store.find(worktree, idea.id)
@@ -275,29 +283,29 @@ describe("idea_start", () => {
     expect(stored?.sessionID).toBe("ses_bg_1")
     expect(out).toContain("ses_bg_1")
 
-    // Сессия создана с заголовком из текста идеи
-    const created = spy.created.value as { body: { title: string } }
-    expect(created.body.title).toContain("написать тесты плагина")
+    // Сессия создана с заголовком из текста идеи и агентом build
+    const created = spy.created.value as { title: string; agent: string }
+    expect(created.title).toContain("написать тесты плагина")
+    expect(created.agent).toBe("build")
 
-    // Миссия адресована фоновой сессии, билд-агенту, с инструкцией idea_update;
+    // Миссия адресована фоновой сессии, с инструкцией idea_update;
     // текст идеи обрамлён как данные (анти-инъекция)
-    const prompted = spy.prompted.value as { path: { id: string }; body: { agent: string; parts: { text: string }[] } }
-    expect(prompted.path.id).toBe("ses_bg_1")
-    expect(prompted.body.agent).toBe("build")
-    expect(prompted.body.parts[0]?.text).toContain(idea.id)
-    expect(prompted.body.parts[0]?.text).toContain("idea_update")
-    expect(prompted.body.parts[0]?.text).toContain("<<<")
-    expect(prompted.body.parts[0]?.text).toContain(">>>")
+    const prompted = spy.prompted.value as { sessionID: string; text: string }
+    expect(prompted.sessionID).toBe("ses_bg_1")
+    expect(prompted.text).toContain(idea.id)
+    expect(prompted.text).toContain("idea_update")
+    expect(prompted.text).toContain("<<<")
+    expect(prompted.text).toContain(">>>")
   })
 
   test("api failure rolls the idea back to pending (C2)", async () => {
     // Arrange
     const worktree = await root()
-    const tools = create(() => worktree, failingClient())
+    const tools = create(() => worktree, failingSession())
     const idea = store.add(worktree, "упадёт при запуске")
 
     // Act
-    const out = text(await tools.idea_start.execute({ id: idea.id }, ctx))
+    const out = text(await tool(tools, "idea_start").execute({ id: idea.id }, toolCtx))
 
     // Assert — идея не залипла in_progress без сессии
     expect(out).toContain("возвращена в pending")
