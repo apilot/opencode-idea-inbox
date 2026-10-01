@@ -66,23 +66,33 @@ export function register(ctx: Plugin.Context, root: () => string | undefined): (
   const unregister = ctx.ui.slot({
     append: "sidebar.content",
     render: (): JSX.Element => {
-      // Срез по LIMIT: гигантский бэклог не должен рендерить сотни строк
-      // каждые 2 секунды — хвост показываем счётчиком.
-      const all = ideas()
-      const items = all.slice(0, LIMIT)
-      const rest = all.length - items.length
       const theme = ctx.theme
 
+      // Реактивность: хост вызывает render() один раз при монтировании
+      // слота, поэтому ВСЕ живые чтения ideas() — внутри функций-детей.
+      // Рендерер @opentui/solid оборачивает accessor-детей в
+      // createRenderEffect (Solid-семантика insert) — при изменении
+      // сигнала пересобираются только живые узлы. Срез по LIMIT: гигантский
+      // бэклог не должен рендерить сотни строк каждые 2 секунды — хвост
+      // показываем счётчиком.
       return (
         <box>
-          <text fg={theme.text.base}>{`Idea Inbox (${all.length})`}</text>
-          {items.length === 0 && <text fg={theme.text.muted}>пусто — leader+z записать идею</text>}
-          {items.map((idea) => (
-            <text fg={color(idea.status, theme)} truncate>
-              {`${glyph(idea.status)} ${trim(idea.text, LIMIT)}`}
-            </text>
-          ))}
-          {rest > 0 && <text fg={theme.text.muted}>{`…и ещё ${rest}`}</text>}
+          <text fg={theme.text.base}>{() => `Idea Inbox (${ideas().length})`}</text>
+          {() => ideas().length === 0 && (
+            <text fg={theme.text.muted}>пусто — leader+z записать идею</text>
+          )}
+          {() =>
+            ideas()
+              .slice(0, LIMIT)
+              .map((idea) => (
+                <text fg={color(idea.status, theme)} truncate>
+                  {`${glyph(idea.status)} ${trim(idea.text, LIMIT)}`}
+                </text>
+              ))
+          }
+          {() => ideas().length > LIMIT && (
+            <text fg={theme.text.muted}>{`…и ещё ${ideas().length - LIMIT}`}</text>
+          )}
         </box>
       )
     },
