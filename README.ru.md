@@ -24,12 +24,12 @@
 
 Сайдбар в середине сессии выглядит так:
 
-<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.png" alt="Сессия opencode с сайдбаром Idea Inbox: три идеи с разными статусами" width="640">
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/assets/demo.png" alt="Сессия opencode с сайдбаром Idea Inbox: три идеи с разными статусами" width="640">
 
 <details>
 <summary>▶ Посмотреть весь цикл — захват идеи, отправка в работу, завершение (GIF, ~10 с)</summary>
 
-<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.gif" alt="GIF: leader+z захватывает мысль в сайдбар, затем идея отправляется из палитры и статус меняется на done" width="640">
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/assets/demo.gif" alt="GIF: leader+z захватывает мысль в сайдбар, затем идея отправляется из палитры и статус меняется на done" width="640">
 
 </details>
 

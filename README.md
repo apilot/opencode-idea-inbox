@@ -25,12 +25,12 @@ its status tick over:
 
 The sidebar mid-session looks like this:
 
-<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.png" alt="opencode session with the Idea Inbox sidebar showing three ideas with different statuses" width="640">
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/assets/demo.png" alt="opencode session with the Idea Inbox sidebar showing three ideas with different statuses" width="640">
 
 <details>
 <summary>▶ Watch the full loop — capture an idea, dispatch it, watch it finish (GIF, ~10 s)</summary>
 
-<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.gif" alt="GIF: pressing leader+z to capture a thought into the sidebar, then dispatching it from the palette and watching the status flip to done" width="640">
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/master/assets/demo.gif" alt="GIF: pressing leader+z to capture a thought into the sidebar, then dispatching it from the palette and watching the status flip to done" width="640">
 
 </details>
 

@@ -2,7 +2,7 @@ import fs from "node:fs"
 import path from "node:path"
 
 const MAX_BYTES = 128 * 1024
-export const BUILD = "0.5.7"
+export const BUILD = "0.5.8"
 
 export interface Diag {
   log(event: string, detail?: Record<string, unknown>): void
