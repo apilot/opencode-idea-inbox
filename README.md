@@ -2,7 +2,7 @@
 
 > [!WARNING]
 > **This is the legacy line for opencode v1** (kept on the `master` branch,
-> npm dist-tag `v1`). It only receives critical fixes.
+> npm dist-tag `legacy-v1`). It only receives critical fixes.
 > For opencode **v2** (≥ 2.0.20) use the current release instead:
 >
 > ```json

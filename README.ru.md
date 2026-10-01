@@ -1,7 +1,7 @@
 # opencode-idea-inbox
 
 > [!WARNING]
-> **Это legacy-линия для opencode v1** (ветка `master`, npm dist-tag `v1`).
+> **Это legacy-линия для opencode v1** (ветка `master`, npm dist-tag `legacy-v1`).
 > Получает только критические исправления.
 > Для opencode **v2** (≥ 2.0.20) используйте актуальный релиз:
 >

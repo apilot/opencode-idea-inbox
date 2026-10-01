@@ -36,7 +36,7 @@ jobs:
           fi
 
       - name: Publish to npm (v1 dist-tag)
-        run: npm publish --access public --tag v1
+        run: npm publish --access public --tag legacy-v1
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -46,5 +46,6 @@ jobs:
           generate_release_notes: true
           body: |
             Legacy v1 line (opencode ≥ 1.18.31, plugin API 1.x).
-            Published under the `v1` npm dist-tag; `latest` points to the
-            opencode v2 release — see the `v2-port` branch.
+            Published under the `legacy-v1` npm dist-tag (plain `v1` is
+            rejected by npm — it parses as a SemVer range); `latest` points
+            to the opencode v2 release — see the `v2-port` branch.
