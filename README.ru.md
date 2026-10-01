@@ -24,6 +24,15 @@
 в диалоге ──/idea "добавить кэш"──▶ ○ pending ──палитра: Ctrl+X → I──▶ ◐ in_progress ──▶ ● done ──▶ ✓ архив
 ```
 
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.png" alt="Сессия opencode с сайдбаром Idea Inbox: три идеи с разными статусами" width="640">
+
+<details>
+<summary>▶ Посмотреть плагин в действии (GIF, ~10 с)</summary>
+
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.gif" alt="GIF: захват мысли в бэклог сайдбара, отправка в работу и смена статуса на done" width="640">
+
+</details>
+
 ## Возможности
 
 - **Захват без трения** — `/idea <текст>`, пункт `✚ Новая идея…` в палитре или `Ctrl+X → Z` (`<leader>z`, модальный ввод без модели — пишет сразу в бэклог); вы остаётесь в текущей задаче

@@ -25,6 +25,15 @@ into the current window or a background session.
 mid-dialog ──/idea "add cache"──▶ ○ pending ──palette: Ctrl+X → I──▶ ◐ in_progress ──▶ ● done ──▶ ✓ archived
 ```
 
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.png" alt="opencode session with the Idea Inbox sidebar showing three ideas with different statuses" width="640">
+
+<details>
+<summary>▶ Watch the plugin in action (GIF, ~10 s)</summary>
+
+<img src="https://raw.githubusercontent.com/apilot/opencode-idea-inbox/v0.5.6/assets/demo.gif" alt="GIF: capturing a thought into the sidebar backlog, then dispatching it and watching the status flip to done" width="640">
+
+</details>
+
 ## Features
 
 - **Frictionless capture** — `/idea <text>`, the `✚ New idea…` palette entry, or `Ctrl+X → Z` (`<leader>z`, a model-free dialog that writes straight to the backlog); you stay in your current task
