@@ -1,6 +1,6 @@
 {
   "name": "opencode-idea-inbox",
-  "version": "0.5.10",
+  "version": "0.5.11",
   "description": "Never lose a stray thought in opencode: park ideas in a sidebar backlog mid-conversation, then dispatch them to agents when you're ready (opencode v2 plugin; v1 users -> opencode-idea-inbox@legacy-v1)",
   "license": "MIT",
   "author": "apilot",
@@ -42,17 +42,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@opencode/plugin": "^2.0.20"
+    "@opencode/plugin": "^2.0.31"
   },
   "peerDependencies": {
-    "@opentui/core": ">=0.5.12",
-    "@opentui/solid": ">=0.5.12",
+    "@opentui/core": ">=0.6.6",
+    "@opentui/solid": ">=0.6.6",
     "solid-js": ">=1.9.0"
   },
   "devDependencies": {
-    "@opencode/theme": "^2.0.20",
-    "@opentui/core": "^0.5.12",
-    "@opentui/solid": "^0.5.12",
+    "@opencode/theme": "^2.0.31",
+    "@opentui/core": "^0.6.6",
+    "@opentui/solid": "^0.6.6",
     "@types/bun": "^1.2.0",
     "@types/node": "^22.0.0",
     "solid-js": "^1.9.0",
