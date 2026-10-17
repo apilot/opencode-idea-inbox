@@ -114,13 +114,14 @@ git clone https://github.com/apilot/opencode-idea-inbox.git ~/opencode-idea-inbo
 | -------- | -------- |
 | Открыть пикер бэклога | `<leader>i` (команда `idea-inbox.open`) |
 | Быстрый захват без модели | `<leader>z` (команда `idea-inbox.capture`) |
-| Удалить одну идею | `idea-inbox.remove` (только палитра, через пикер) |
-| Очистить видимый список | `idea-inbox.clear` (только палитра, с подтверждением; архив `documented` остаётся) |
+| Удалить идеи — мульти-выбор: ☑ отметить, удалить одним махом | `idea-inbox.remove`; в пикере `<leader>i` — пункты удаления внизу списка |
 | Показать/скрыть сайдбар | нативный переключатель opencode |
 
 У всех команд стабильные id (`idea-inbox.open`, `idea-inbox.capture`,
-`idea-inbox.remove`, `idea-inbox.clear`, `idea-inbox.take.<id>`) — при
-конфликте перебиндьте их через `keybinds` в своём `cli.json`.
+`idea-inbox.remove`, `idea-inbox.take.<id>`) — при конфликте перебиндьте их
+через `keybinds` в своём `cli.json`. Команда `idea-inbox.clear` («✖ Очистить
+список») удалена — её функция стала пунктом «✖ Очистить всё» в меню удаления;
+если был перебайнд, перенесите его на `idea-inbox.remove`.
 
 ### Слэш-команды
 

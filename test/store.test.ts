@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { active, add, byStatus, claim, clear, find, forSession, load, sanitize, update, remove } from "../src/store.js"
+import { active, add, byStatus, claim, clear, clearDone, find, forSession, load, sanitize, update, remove, removeMany } from "../src/store.js"
 
 const roots: string[] = []
 
@@ -155,6 +155,89 @@ describe("clear", () => {
     expect(removed).toBe(2)
     expect(active(worktree)).toHaveLength(0)
     expect(byStatus(worktree, "documented").map((idea) => idea.id)).toEqual([archived.id])
+  })
+})
+
+describe("clearDone", () => {
+  test("deletes only done ideas, keeps pending/in_progress/documented, returns count", async () => {
+    // Arrange
+    const worktree = await root()
+    const done = add(worktree, "готовая")
+    const pending = add(worktree, "в очереди")
+    const running = add(worktree, "в работе")
+    const archived = add(worktree, "архивная")
+    update(worktree, done.id, { status: "done" })
+    update(worktree, running.id, { status: "in_progress" })
+    update(worktree, archived.id, { status: "documented" })
+
+    // Act
+    const removed = clearDone(worktree)
+
+    // Assert
+    expect(removed).toBe(1)
+    expect(find(worktree, done.id)).toBeUndefined()
+    expect(find(worktree, pending.id)?.status).toBe("pending")
+    expect(find(worktree, running.id)?.status).toBe("in_progress")
+    expect(byStatus(worktree, "documented").map((idea) => idea.id)).toEqual([archived.id])
+  })
+
+  test("returns 0 when no done ideas and touches nothing", async () => {
+    // Arrange
+    const worktree = await root()
+    const pending = add(worktree, "в очереди")
+
+    // Act
+    const removed = clearDone(worktree)
+
+    // Assert
+    expect(removed).toBe(0)
+    expect(active(worktree)).toHaveLength(1)
+    expect(find(worktree, pending.id)?.status).toBe("pending")
+  })
+})
+
+describe("removeMany", () => {
+  test("deletes all listed ids and returns count", async () => {
+    // Arrange
+    const worktree = await root()
+    const first = add(worktree, "первая")
+    const second = add(worktree, "вторая")
+    const keep = add(worktree, "остаётся")
+
+    // Act
+    const removed = removeMany(worktree, [first.id, second.id])
+
+    // Assert
+    expect(removed).toBe(2)
+    expect(find(worktree, first.id)).toBeUndefined()
+    expect(find(worktree, second.id)).toBeUndefined()
+    expect(find(worktree, keep.id)?.text).toBe("остаётся")
+  })
+
+  test("skips unknown ids, counts only removed", async () => {
+    // Arrange
+    const worktree = await root()
+    const idea = add(worktree, "существует")
+
+    // Act
+    const removed = removeMany(worktree, [idea.id, "idea_missing"])
+
+    // Assert
+    expect(removed).toBe(1)
+    expect(find(worktree, idea.id)).toBeUndefined()
+  })
+
+  test("empty list removes nothing, returns 0", async () => {
+    // Arrange
+    const worktree = await root()
+    const idea = add(worktree, "нетронутая")
+
+    // Act
+    const removed = removeMany(worktree, [])
+
+    // Assert
+    expect(removed).toBe(0)
+    expect(find(worktree, idea.id)?.text).toBe("нетронутая")
   })
 })
 

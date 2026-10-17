@@ -142,50 +142,179 @@ export function register(
 
   /** Выбор pending-идеи из диалога и запуск в текущую сессию. */
   const open = async (): Promise<void> => {
-    const pending = ideas().filter((idea) => idea.status === "pending")
-    if (pending.length === 0) {
+    const active = ideas()
+    if (active.length === 0) {
       toast("Бэклог пуст — leader+z записать идею", "info")
       return
     }
+    const pending = active.filter((idea) => idea.status === "pending")
+    // Счётчик для пункта «Очистить завершённые»; стор недоступен — покажет 0,
+    // guard в clearDoneFlow объяснит
+    let doneCount = 0
+    try {
+      const worktree = root()
+      if (worktree !== undefined) doneCount = store.byStatus(worktree, "done").length
+    } catch {
+      // noop
+    }
+    // leader+i — единый хаб (R4): идеи для взятия в работу + пункты удаления.
+    // Пункты — обычные опции (footer-actions хоста 2.0.32 спрятаны под
+    // экспериментом new-designs — upstream #14): работает стрелки+Enter.
     const selected = await ctx.ui.dialog.select<string>({
       title: "Idea Inbox — взять в работу",
-      placeholder: "Выберите идею",
-      options: pending.map((idea) => ({
-        title: `▸ ${trim(idea.text, LIMIT)}`,
-        value: idea.id,
-        description: `${idea.id} — отправить миссию в текущую сессию`,
-      })),
+      placeholder: "Выберите идею или действие",
+      options: [
+        ...pending.map((idea) => ({
+          title: `▸ ${trim(idea.text, LIMIT)}`,
+          value: idea.id,
+          description: `${idea.id} — отправить идею в текущую сессию`,
+        })),
+        {
+          title: "🗑 Удалить идеи…",
+          value: "__remove__",
+          description: "Мульти-выбор: отметить идеи и удалить одним махом",
+        },
+        {
+          title: `✓ Очистить завершённые (${doneCount})`,
+          value: "__done__",
+          description: "Удалить идеи со статусом done (архив остаётся)",
+        },
+        {
+          title: "✖ Очистить всё",
+          value: "__clearall__",
+          description: "Удалить все видимые идеи (архив documented остаётся)",
+        },
+      ],
     })
     if (selected === undefined) return
+    if (selected === "__remove__") {
+      const worktree = root()
+      if (worktree === undefined || worktree === "" || worktree === "/") return
+      openMultiDelete(worktree, new Set())
+      return
+    }
+    if (selected === "__done__") {
+      const worktree = root()
+      if (worktree === undefined || worktree === "" || worktree === "/") return
+      void clearDoneFlow(worktree)
+      return
+    }
+    if (selected === "__clearall__") {
+      void clearAll()
+      return
+    }
     const idea = pending.find((candidate) => candidate.id === selected)
     if (idea !== undefined) take(idea)
   }
 
-  /** Удаление одной идеи: dialog.select по активному списку. */
-  const removeOne = async (): Promise<void> => {
-    const active = ideas()
-    if (active.length === 0) {
+  /**
+   * Мульти-выбор удаления: ☑ прямо в пункте, счётчик в заголовке — состояние
+   * видно всегда (R7). Опции DialogSelect статичны, поэтому каждое
+   * переключение переоткрывает диалог: fresh-список из стора + current
+   * держит курсор на идее. Enter/space — переключить, ctrl+d — один
+   * confirm и removeMany одним махом (фидбек: «выбрать несколько за раз
+   * и удалить одним махом»).
+   */
+  const openMultiDelete = (worktree: string, marked: Set<string>, lastId?: string): void => {
+    let fresh: Idea[]
+    try {
+      fresh = store.active(worktree)
+    } catch {
+      toast("Не удалось прочитать список", "error")
+      return
+    }
+    if (fresh.length === 0) {
       toast("Список уже пуст", "info")
       return
     }
-    const selected = await ctx.ui.dialog.select<string>({
-      title: "Удалить идею",
-      placeholder: "Выберите запись для удаления",
-      options: active.map((idea) => ({
-        title: `🗑 ${glyph(idea.status)} ${trim(idea.text, LIMIT)}`,
-        value: idea.id,
-        description: `${idea.id} (${idea.status}) — удалить`,
-      })),
+    void ctx.ui.dialog
+      .select<string>({
+        title: `Удалить идеи — отмечено: ${marked.size}`,
+        placeholder: "Enter — отметить, Esc — отмена",
+        options: [
+          ...fresh.map((idea) => ({
+            title: `${marked.has(idea.id) ? "☑" : "☐"} ${glyph(idea.status)} ${trim(idea.text, LIMIT)}`,
+            value: idea.id,
+            description: `${idea.id} (${idea.status})`,
+          })),
+          {
+            title: `🗑 Удалить отмеченные (${marked.size})`,
+            value: "__commit__",
+            description: "Один confirm на все отмеченные идеи",
+          },
+        ],
+        current: lastId,
+      })
+      .then((picked) => {
+        // Enter закрывает диалог с выбранным id: идея — переключение,
+        // __commit__ — удаление пачки; undefined (Esc/reopen) — стоп.
+        // В live-сценарии reopen гасит старый промис с undefined.
+        if (picked === undefined) return
+        if (picked === "__commit__") {
+          void deleteMarked(worktree, marked)
+          return
+        }
+        toggleMark(worktree, marked, picked)
+      })
+  }
+
+  /** Переключить галочку и переоткрыть диалог: fresh-список, курсор на идее. */
+  const toggleMark = (worktree: string, marked: Set<string>, id: string): void => {
+    if (marked.has(id)) marked.delete(id)
+    else marked.add(id)
+    diag.log("cmd.mark", { id, marked: marked.size })
+    ctx.ui.dialog.clear()
+    openMultiDelete(worktree, marked, id)
+  }
+
+  /** Один confirm на всю пачку; отказ/пустой набор возвращает к выбору. */
+  const deleteMarked = async (worktree: string, marked: Set<string>): Promise<void> => {
+    if (marked.size === 0) {
+      toast("Ничего не отмечено — Enter на идее, чтобы отметить", "info")
+      openMultiDelete(worktree, marked)
+      return
+    }
+    const confirmed = await ctx.ui.dialog.confirm({
+      title: "Удалить отмеченные?",
+      message: `Удалить идеи (${marked.size})? Действие необратимо.`,
     })
-    if (selected === undefined) return
+    if (confirmed !== true) {
+      openMultiDelete(worktree, marked)
+      return
+    }
     try {
-      const worktree = root()
-      if (worktree === undefined) return
-      const removed = store.remove(worktree, selected)
-      toast(removed ? `🗑 ${selected} — удалено` : `Идея ${selected} не найдена`, removed ? "info" : "error")
-      if (removed) diag.log("cmd.remove", { id: selected })
+      const removed = store.removeMany(worktree, [...marked])
+      diag.log("cmd.removeMany", { removed })
+      toast(`🗑 Удалено: ${removed}`, "info")
     } catch {
-      toast("Не удалось удалить идею", "error")
+      toast("Не удалось удалить идеи", "error")
+    }
+  }
+
+  /** Очистка завершённых (done): confirm с числом; активные и архив не трогаются. */
+  const clearDoneFlow = async (worktree: string): Promise<void> => {
+    let doneCount = 0
+    try {
+      doneCount = store.byStatus(worktree, "done").length
+    } catch {
+      toast("Не удалось прочитать список", "error")
+      return
+    }
+    if (doneCount === 0) {
+      toast("Завершённых идей нет", "info")
+      return
+    }
+    const confirmed = await ctx.ui.dialog.confirm({
+      title: "Очистить завершённые?",
+      message: `Удалить завершённые идеи (${doneCount})? Действие необратимо.`,
+    })
+    if (confirmed !== true) return
+    try {
+      const removed = store.clearDone(worktree)
+      diag.log("cmd.clearDone", { removed })
+      toast(`🗑 Удалено: ${removed}`, "info")
+    } catch {
+      toast("Не удалось очистить завершённые", "error")
     }
   }
 
@@ -208,12 +337,15 @@ export function register(
   }
 
   // Статические команды. Порядок в палитре: сначала идеи (Enter на первой —
-  // запуск), затем открытие списка, захват, удаление; очистка — последней
-  // (самая деструктивная, дальше всех от случайного Enter).
+  // запуск), затем открытие списка, захват; удаление — последним: меню
+  // управления (R6), самое деструктивное действие, дальше всех от случайного
+  // Enter. Отдельная команда очистки ушла в меню пунктом «✖ Очистить всё».
   //
   // Биндинги: <leader>i — палитра выбора, <leader>z — записать мысль
   // (мнемоника «запиши»). Имена команд стабильны — пользователь может
-  // перебиндить их в cli.json (keybinds по id).
+  // перебиндить их в cli.json (keybinds по id). Команда idea-inbox.clear
+  // удалена: её функция — пункт меню (перебайнд надо переносить на
+  // idea-inbox.remove).
   const staticCommands = [
     {
       id: "idea-inbox.open",
@@ -237,19 +369,15 @@ export function register(
     },
     {
       id: "idea-inbox.remove",
-      title: `🗑 Удалить идею…`,
-      description: "Удалить запись из бэклога",
+      title: `🗑 Удалить идеи…`,
+      description: "Мульти-выбор: отметить идеи и удалить одним махом",
       group: "Idea Inbox",
       palette: true as const,
-      run: () => void removeOne(),
-    },
-    {
-      id: "idea-inbox.clear",
-      title: `✖ Очистить список`,
-      description: "Удалить все видимые идеи (архив documented остаётся)",
-      group: "Idea Inbox",
-      palette: true as const,
-      run: () => void clearAll(),
+      run: () => {
+        const worktree = root()
+        if (worktree === undefined || worktree === "" || worktree === "/") return
+        openMultiDelete(worktree, new Set())
+      },
     },
   ]
 

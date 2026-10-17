@@ -233,3 +233,32 @@ export function remove(worktree: string, id: string): boolean {
 export function clear(worktree: string): number {
   return connect(worktree).run("DELETE FROM ideas WHERE status != 'documented'").changes
 }
+
+/**
+ * Удаление завершённых идей (status = 'done') — ручная уборка после
+ * документирования части бэклога. pending/in_progress и архив documented
+ * не трогаются. Возвращает число удалённых записей.
+ */
+export function clearDone(worktree: string): number {
+  return connect(worktree).run("DELETE FROM ideas WHERE status = 'done'").changes
+}
+
+/**
+ * Удаление пачки идей по id (выбор в сайдбаре). Неизвестные id молча
+ * пропускаются — возвращается фактическое число удалённых записей.
+ */
+export function removeMany(worktree: string, ids: readonly string[]): number {
+  let removed = 0
+  const db = connect(worktree)
+  db.run("BEGIN")
+  try {
+    for (const id of ids) {
+      removed += db.run("DELETE FROM ideas WHERE id = ?", [id]).changes
+    }
+    db.run("COMMIT")
+  } catch (error) {
+    db.run("ROLLBACK")
+    throw error
+  }
+  return removed
+}
