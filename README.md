@@ -1,7 +1,7 @@
 # opencode-idea-inbox
 
 > [!WARNING]
-> **This is the legacy line for opencode v1** (kept on the `master` branch,
+> **This is the legacy line for opencode v1** (kept on the `legacy-v1` branch,
 > npm dist-tag `legacy-v1`). It only receives critical fixes.
 > For opencode **v2** (≥ 2.0.20) use the current release instead:
 >
