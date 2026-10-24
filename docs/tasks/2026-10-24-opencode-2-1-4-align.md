@@ -1,6 +1,6 @@
 # 2026-10-24 — Align plugin with opencode 2.1.4 (release 0.6.1)
 
-Status: **release**
+Status: **done**
 
 ## Request
 
