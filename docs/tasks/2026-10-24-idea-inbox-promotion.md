@@ -28,7 +28,7 @@
 Все материалы: [promo/00-repo-hygiene.md](./promo/00-repo-hygiene.md)
 
 - [x] GitHub-репо: description, homepage, topics (выполнено 2026-10-24)
-- [ ] Переснять demo.gif (+demo.png) по сценарию [promo/08-record-demo.md](./promo/08-record-demo.md)
+- [x] Переснять demo.gif (+demo.png) по сценарию [promo/08-record-demo.md](./promo/08-record-demo.md) — выполнено 2026-10-24, авто-запись через pty-драйвер; demo.gif 2.0МБ/18.6с без персональных данных (a52bacb). Попутно исправлены 3 бага плагина: EN-строки TUI, in_progress при take, settle по session.execution.succeeded (5a9fd2a)
 
 ### Этап 1 — быстрые победы (точная аудитория)
 
