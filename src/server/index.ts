@@ -79,7 +79,9 @@ export default Plugin.define({
         // после таймаута): событие не должно ронять цикл — статус доедет
         // следующим событием или ручным idea_update.
         try {
-          if (event.type === "session.idle") {
+          // opencode 2.1.4 завершает ответ событием session.execution.succeeded;
+          // session.idle оставлен для совместимости с более новыми сборками.
+          if (event.type === "session.idle" || event.type === "session.execution.succeeded") {
             const sessionID = sessionIDOf(event.data)
             if (sessionID !== undefined) settle(root(), sessionID, "idle")
             continue

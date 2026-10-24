@@ -92,7 +92,7 @@ export function register(
         <box>
           <text fg={theme.text.base}>{() => `Idea Inbox (${ideas().length})`}</text>
           {() => ideas().length === 0 && (
-            <text fg={theme.text.muted}>пусто — leader+z записать идею</text>
+            <text fg={theme.text.muted}>empty — leader+z to capture an idea</text>
           )}
           {() =>
             ideas()
@@ -104,7 +104,7 @@ export function register(
               ))
           }
           {() => ideas().length > LIMIT && (
-            <text fg={theme.text.muted}>{`…и ещё ${ideas().length - LIMIT}`}</text>
+            <text fg={theme.text.muted}>{`…and ${ideas().length - LIMIT} more`}</text>
           )}
         </box>
       )
