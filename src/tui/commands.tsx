@@ -116,7 +116,13 @@ export function register(
         diag.log("cmd.take", { id: idea.id })
         toast(`▶ ${idea.id} — отправлено в основное окно`, "info")
       })
-      .catch(() => {
+      .catch((err: unknown) => {
+        // Фейл промта обязан оставлять след: без этого «статусы не меняются»
+        // недиагностируяемы (инцидент techservice64, 2026-10-24).
+        diag.log("cmd.take.fail", {
+          id: idea.id,
+          error: err instanceof Error ? err.message : String(err),
+        })
         toast("Не удалось отправить промт — попробуйте ещё раз", "error")
       })
   }
