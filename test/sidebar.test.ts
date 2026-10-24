@@ -123,7 +123,7 @@ describe("сайдбар: живой рендер бэклога", () => {
     // Assert — строка ушла, счётчик обнулился, пусто-подсказка вернулась
     expect(after).not.toContain("временная мысль")
     expect(after).toMatch(/Idea Inbox \(0\)/)
-    expect(after).toContain("пусто")
+    expect(after).toContain("empty")
     off()
   })
 

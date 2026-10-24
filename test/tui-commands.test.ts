@@ -221,7 +221,7 @@ describe("take", () => {
     expect(stub.prompts[0]?.text).toContain("status=done")
     expect(stub.prompts[0]?.text).toContain("<<<")
     expect(stub.prompts[0]?.text).toContain(">>>")
-    expect(stub.prompts[0]?.text).toContain("ДАННЫЕ")
+    expect(stub.prompts[0]?.text).toContain("DATA")
     expect(stub.toasts.some((toast) => toast.message.includes("▶"))).toBeTrue()
 
     off()
@@ -241,7 +241,7 @@ describe("take", () => {
 
     // Assert
     expect(stub.toasts).toHaveLength(1)
-    expect(stub.toasts[0]?.message).toContain("Не удалось отправить промт")
+    expect(stub.toasts[0]?.message).toContain("Failed to send the prompt")
     expect(stub.toasts.some((toast) => toast.message.includes("▶"))).toBeFalse()
 
     off()
@@ -261,7 +261,7 @@ describe("take", () => {
 
     // Assert
     expect(stub.prompts).toHaveLength(0)
-    expect(stub.toasts.some((toast) => /уже не в очереди/.test(toast.message))).toBeTrue()
+    expect(stub.toasts.some((toast) => /no longer pending/.test(toast.message))).toBeTrue()
 
     off()
   })
@@ -277,7 +277,7 @@ describe("take", () => {
     await settle()
 
     expect(stub.prompts).toHaveLength(0)
-    expect(stub.toasts.some((toast) => toast.message.includes("Откройте сессию"))).toBeTrue()
+    expect(stub.toasts.some((toast) => toast.message.includes("Open a session first"))).toBeTrue()
 
     off()
   })
@@ -328,7 +328,7 @@ describe("capture (<leader>z, dialog.prompt)", () => {
     byId(layer(stub), "idea-inbox.capture").run()
     await settle()
 
-    expect(stub.toasts.some((toast) => toast.message.includes("Не удалось сохранить идею"))).toBeTrue()
+    expect(stub.toasts.some((toast) => toast.message.includes("Failed to save the idea"))).toBeTrue()
 
     off()
   })
@@ -344,7 +344,7 @@ describe("open (пикер бэклога)", () => {
     await settle()
 
     expect(stub.dialogs.select).toHaveLength(0)
-    expect(stub.toasts.some((toast) => toast.message.includes("Бэклог пуст"))).toBeTrue()
+    expect(stub.toasts.some((toast) => toast.message.includes("Backlog is empty"))).toBeTrue()
 
     off()
   })
@@ -403,7 +403,7 @@ describe("open (пикер бэклога)", () => {
     expect(store.find(dir, pending.id)?.status).toBe("pending")
     expect(store.find(dir, doneA.id)).toBeUndefined()
     expect(store.find(dir, doneB.id)).toBeUndefined()
-    expect(stub.toasts.some((toast) => /удалено: 2/i.test(toast.message))).toBeTrue()
+    expect(stub.toasts.some((toast) => /deleted: 2/i.test(toast.message))).toBeTrue()
 
     off()
   })
@@ -443,7 +443,7 @@ describe("open (пикер бэклога)", () => {
 
     expect(store.active(dir)).toHaveLength(0)
     expect(store.byStatus(dir, "documented")).toHaveLength(1)
-    expect(stub.toasts.some((toast) => toast.message.includes("удалено 2"))).toBeTrue()
+    expect(stub.toasts.some((toast) => toast.message.includes("2 deleted"))).toBeTrue()
 
     off()
   })
@@ -479,7 +479,7 @@ describe("мульти-выбор удаления (idea-inbox.remove)", () => {
     await settle()
 
     expect(stub.dialogs.select).toHaveLength(0)
-    expect(stub.toasts.some((toast) => toast.message.includes("пуст"))).toBeTrue()
+    expect(stub.toasts.some((toast) => toast.message.includes("empty"))).toBeTrue()
 
     off()
   })
@@ -501,7 +501,7 @@ describe("мульти-выбор удаления (idea-inbox.remove)", () => {
       title: string
       options: { value: string; title: string }[]
     }
-    expect(args.title).toContain("отмечено: 0")
+    expect(args.title).toContain("marked: 0")
     expect(args.options).toHaveLength(3)
     expect(
       args.options
@@ -509,7 +509,7 @@ describe("мульти-выбор удаления (idea-inbox.remove)", () => {
         .every((option) => option.title.startsWith("☐")),
     ).toBeTrue()
     expect(args.options.find((option) => option.value === "__commit__")?.title).toContain(
-      "Удалить отмеченные (0)",
+      "Delete marked (0)",
     )
 
     off()
@@ -537,7 +537,7 @@ describe("мульти-выбор удаления (idea-inbox.remove)", () => {
       options: { value: string; title: string }[]
       current?: string
     }
-    expect(reopen1.title).toContain("отмечено: 1")
+    expect(reopen1.title).toContain("marked: 1")
     expect(reopen1.options.find((option) => option.value === first.id)?.title.startsWith("☑")).toBeTrue()
     expect(reopen1.options.find((option) => option.value === second.id)?.title.startsWith("☐")).toBeTrue()
     expect(reopen1.current).toBe(first.id)
@@ -547,7 +547,7 @@ describe("мульти-выбор удаления (idea-inbox.remove)", () => {
       options: { value: string; title: string }[]
       current?: string
     }
-    expect(reopen2.title).toContain("отмечено: 2")
+    expect(reopen2.title).toContain("marked: 2")
     expect(reopen2.current).toBe(second.id)
     expect(
       reopen2.options
@@ -569,7 +569,7 @@ describe("мульти-выбор удаления (idea-inbox.remove)", () => {
     await settle()
 
     const reopened = stub.dialogs.select[2] as { title: string; options: { title: string }[] }
-    expect(reopened.title).toContain("отмечено: 0")
+    expect(reopened.title).toContain("marked: 0")
     expect(reopened.options[0]?.title.startsWith("☐")).toBeTrue()
 
     off()
@@ -593,7 +593,7 @@ describe("мульти-выбор удаления (idea-inbox.remove)", () => {
     expect(store.find(dir, second.id)).toBeUndefined()
     expect(store.find(dir, keep.id)?.text).toBe("остаётся")
     expect(stub.dialogs.confirm).toHaveLength(1)
-    expect(stub.toasts.some((toast) => /удалено: 2/i.test(toast.message))).toBeTrue()
+    expect(stub.toasts.some((toast) => /deleted: 2/i.test(toast.message))).toBeTrue()
 
     off()
   })
