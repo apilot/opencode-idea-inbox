@@ -223,6 +223,14 @@ reference).
 Issues and PRs are welcome at
 <https://github.com/apilot/opencode-idea-inbox>.
 
+## Support
+
+If idea-inbox is useful to you, give it a ⭐. Once the repo reaches **25+
+stars**, it qualifies for the curated
+[awesome-opencode](https://github.com/awesome-opencode/awesome-opencode)
+list — a PR adding it there gets accepted, making it part of the opencode
+ecosystem.
+
 ## License
 
 [MIT](./LICENSE)

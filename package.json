@@ -1,7 +1,7 @@
 {
   "name": "opencode-idea-inbox",
-  "version": "0.6.2",
-  "description": "Never lose a stray thought in opencode: park ideas in a sidebar backlog mid-conversation, then dispatch them to agents when you're ready (opencode v2 plugin; v1 users -> opencode-idea-inbox@legacy-v1)",
+  "version": "0.6.3",
+  "description": "Never lose a stray thought in opencode: park ideas in a sidebar backlog mid-conversation, then dispatch them to agents when you're ready. Like it? ⭐ the repo — at 25+ stars it joins the curated awesome-opencode list (opencode v2 plugin; v1 users -> opencode-idea-inbox@legacy-v1)",
   "license": "MIT",
   "author": "apilot",
   "repository": {

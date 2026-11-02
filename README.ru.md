@@ -220,6 +220,13 @@ bun test            # полный набор: store, tools, server, commands, T
 Issues и PR приветствуются:
 <https://github.com/apilot/opencode-idea-inbox>.
 
+## Поддержка
+
+Если плагин вам полезен — поставьте ⭐. Когда у репо наберётся **25+
+звёзд**, он проходит по критериям курируемого листа
+[awesome-opencode](https://github.com/awesome-opencode/awesome-opencode):
+PR на добавление примут, и плагин станет частью экосистемы opencode.
+
 ## Лицензия
 
 [MIT](./LICENSE)
