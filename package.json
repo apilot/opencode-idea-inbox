@@ -1,6 +1,6 @@
 {
   "name": "opencode-idea-inbox",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "Never lose a stray thought in opencode: park ideas in a sidebar backlog mid-conversation, then dispatch them to agents when you're ready. Like it? ⭐ the repo — at 25+ stars it joins the curated awesome-opencode list (opencode v2 plugin; v1 users -> opencode-idea-inbox@legacy-v1)",
   "license": "MIT",
   "author": "apilot",
@@ -24,7 +24,7 @@
     "./tui": "./src/tui/index.tsx"
   },
   "engines": {
-    "opencode": ">=2.2.6"
+    "opencode": ">=2.3.0"
   },
   "files": [
     "src",
@@ -42,15 +42,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@opencode/plugin": "^2.2.7"
+    "@opencode/plugin": "^2.3.2"
   },
   "peerDependencies": {
-    "@opentui/core": ">=0.8.1",
-    "@opentui/solid": ">=0.8.1",
+    "@opentui/core": ">=0.8.4",
+    "@opentui/solid": ">=0.8.4",
     "solid-js": ">=1.9.0"
   },
   "devDependencies": {
-    "@opencode/theme": "2.2.7",
+    "@opencode/theme": "2.3.2",
     "@opentui/core": "^0.8.4",
     "@opentui/solid": "^0.8.4",
     "@types/bun": "^1.2.0",
