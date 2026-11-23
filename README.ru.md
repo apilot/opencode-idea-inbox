@@ -1,7 +1,7 @@
 # opencode-idea-inbox
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![opencode](https://img.shields.io/badge/opencode-v2%20%E2%89%A52.2.6-blue)](https://opencode.ai)
+[![opencode](https://img.shields.io/badge/opencode-v2%20%E2%89%A52.4.0-blue)](https://opencode.ai)
 [![npm](https://img.shields.io/npm/v/opencode-idea-inbox)](https://www.npmjs.com/package/opencode-idea-inbox)
 
 [English](./README.md) | **Русский**
@@ -39,7 +39,7 @@
 
 | Ваш opencode           | Устанавливать                          | Где живёт |
 | ---------------------- | -------------------------------------- | --------- |
-| **v2** (≥ 2.2.6)       | `opencode-idea-inbox` (`latest`)       | ветка [`master`](https://github.com/apilot/opencode-idea-inbox/tree/master) (по умолчанию) |
+| **v2** (≥ 2.4.0)       | `opencode-idea-inbox` (`latest`)       | ветка [`master`](https://github.com/apilot/opencode-idea-inbox/tree/master) (по умолчанию) |
 | **v1**                 | `opencode-idea-inbox@legacy-v1` (сейчас 0.3.5) | ветка [`legacy-v1`](https://github.com/apilot/opencode-idea-inbox/tree/legacy-v1) |
 
 Не уверены, что у вас? Проверьте `opencode --version`.
@@ -56,7 +56,7 @@
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["opencode-idea-inbox"]
+  "plugins": ["opencode-idea-inbox@latest"]
 }
 ```
 
@@ -75,6 +75,11 @@
 После установки перезапустите opencode — конфиг на лету не перечитывается — и
 проверьте `opencode plugin list`. Если панель в сайдбаре не видна, включите её
 один раз нативным переключателем: плагин никогда не открывает её принудительно.
+
+На **opencode ≥ 2.4** спек `@latest` обновляется сама: opencode проверяет новую
+подходящую версию на старте и раз в 24 часа, ставит и перезагружает плагин без
+рестарта. На opencode 2.2–2.3 для новых релизов — `opencode plugin update` и
+перезапуск.
 
 <details>
 <summary>Установка из локального клона (для разработки)</summary>
