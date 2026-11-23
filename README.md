@@ -79,8 +79,8 @@ once with your sidebar keybind; the plugin never force-opens it.
 
 On **opencode ≥ 2.4**, the `@latest` spec keeps itself current: opencode checks
 for a newer matching version on startup and every 24 hours, installs it and
-reloads the plugin without a restart. On opencode 2.2–2.3 run
-`opencode plugin update` and restart to pick up new releases.
+reloads the plugin without a restart. On older opencode pin the package by
+hand instead: `opencode-idea-inbox@0.6.5` for 2.3.x, `@0.6.4` for 2.2.x.
 
 <details>
 <summary>Installing from a local clone (development)</summary>
